@@ -304,7 +304,9 @@ impl App {
         if app.resolved_exe.is_some() {
             app.page = Page::Setup;
         }
-        app.start_update_check();
+        if update::ENABLED {
+            app.start_update_check();
+        }
         app.start_scan(&cc.egui_ctx);
         app
     }
@@ -734,6 +736,9 @@ impl App {
     /// Called every frame: cheap, and only starts a request when the interval
     /// has passed and nothing else is in flight.
     fn maybe_recheck_update(&mut self) {
+        if !update::ENABLED {
+            return;
+        }
         if self.update_rx.is_some() || !matches!(self.update, UpdateState::Idle) {
             return;
         }
@@ -743,6 +748,9 @@ impl App {
     }
 
     fn start_update_check(&mut self) {
+        if !update::ENABLED {
+            return;
+        }
         self.last_update_check = std::time::Instant::now();
         let (tx, rx) = channel::<UpdateState>();
         self.update_rx = Some(rx);
@@ -2436,7 +2444,7 @@ fn about_page(ui: &mut egui::Ui) {
         ),
         (
             "Source, issues and releases",
-            "https://github.com/faisalkindi/DLSS5oneclick",
+            "https://github.com/branch-danya-dev/DLSS5oneclick",
         ),
     ] {
         ui.hyperlink_to(
@@ -2861,33 +2869,45 @@ impl eframe::App for App {
                     Page::About => {
                         about_page(ui);
                         ui.add_space(10.0);
-                        let busy = self.update_rx.is_some()
-                            || !matches!(self.update, UpdateState::Idle);
-                        let btn = egui::Button::new(
-                            RichText::new("Check for updates")
-                                .font(t::plex_medium(12.5))
-                                .color(t::TEXT),
-                        )
-                        .fill(Color32::TRANSPARENT)
-                        .stroke(Stroke::new(1.0, t::BORDER_STRONG))
-                        .corner_radius(CornerRadius::same(8))
-                        .min_size(Vec2::new(150.0, 34.0));
-                        if ui.add_enabled(!busy, btn).clicked() {
-                            // An explicit check also clears a skipped version:
-                            // asking is asking.
-                            self.skipped_version.clear();
-                            self.checked_manually = true;
-                            self.start_update_check();
-                        }
-                        if self.checked_manually
-                            && matches!(self.update, UpdateState::Idle)
-                            && self.update_rx.is_none()
-                        {
+                        if update::ENABLED {
+                            let busy = self.update_rx.is_some()
+                                || !matches!(self.update, UpdateState::Idle);
+                            let btn = egui::Button::new(
+                                RichText::new("Check for updates")
+                                    .font(t::plex_medium(12.5))
+                                    .color(t::TEXT),
+                            )
+                            .fill(Color32::TRANSPARENT)
+                            .stroke(Stroke::new(1.0, t::BORDER_STRONG))
+                            .corner_radius(CornerRadius::same(8))
+                            .min_size(Vec2::new(150.0, 34.0));
+                            if ui.add_enabled(!busy, btn).clicked() {
+                                // An explicit check also clears a skipped version:
+                                // asking is asking.
+                                self.skipped_version.clear();
+                                self.checked_manually = true;
+                                self.start_update_check();
+                            }
+                            if self.checked_manually
+                                && matches!(self.update, UpdateState::Idle)
+                                && self.update_rx.is_none()
+                            {
+                                ui.label(
+                                    RichText::new(concat!(
+                                        "You are on the newest release (v",
+                                        env!("CARGO_PKG_VERSION"),
+                                        ")."
+                                    ))
+                                    .font(t::plex(12.0))
+                                    .color(t::TEXT_MUTED),
+                                );
+                            }
+                        } else {
                             ui.label(
                                 RichText::new(concat!(
-                                    "You are on the newest release (v",
+                                    "Self-update is disabled in this fork (v",
                                     env!("CARGO_PKG_VERSION"),
-                                    ")."
+                                    "). Upstream releases are not applied."
                                 ))
                                 .font(t::plex(12.0))
                                 .color(t::TEXT_MUTED),

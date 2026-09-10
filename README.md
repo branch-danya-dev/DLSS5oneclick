@@ -61,7 +61,7 @@ CLI: `dlss5oneclick.exe "C:\Games\Foo"` (folder or exe) / `--renodx` (also insta
 
 ## Updates
 
-On start the tool looks at `github.com/faisalkindi/DLSS5oneclick/releases/latest` (a redirect, no API) in the background. If a newer version exists, a bar offers **Update / Later / Skip this version**; nothing is downloaded unless you press Update. Update fetches the release exe, checks it is a real executable, swaps it in place of the running one (the old file is kept as `dlss5oneclick.exe.old` until the next start) and restarts. `dlss5oneclick.exe --update` does the same from the command line.
+Self-update is **disabled** in this fork so upstream `faisalkindi/DLSS5oneclick` releases are not offered or installed over it. `dlss5oneclick.exe --update` reports that and exits. To re-enable later, set `update::ENABLED` to `true` (and point `update::REPO` at the release source you want).
 
 ## Downloads and GitHub
 

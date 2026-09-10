@@ -194,6 +194,13 @@ Attach that file to a GitHub issue.",
 }
 
 fn cli_update() -> i32 {
+    if !update::ENABLED {
+        println!(
+            "Self-update is disabled in this fork (DLSS5oneclick {}). Upstream releases are not applied.",
+            update::CURRENT
+        );
+        return 0;
+    }
     match update::check() {
         Ok(None) => {
             println!("DLSS5oneclick {} is the latest version.", update::CURRENT);

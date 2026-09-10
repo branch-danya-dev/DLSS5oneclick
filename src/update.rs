@@ -1,17 +1,17 @@
 //! Self-update against GitHub releases, without the API.
 //!
-//! `github.com/<repo>/releases/latest` answers with a 302 to
-//! `/releases/tag/vX.Y.Z`; that Location header is the version check. The
-//! binary itself comes from `releases/latest/download/dlss5oneclick.exe`.
-//! Replacing a running exe on Windows: rename the running file aside (allowed),
-//! move the new one into its place, start it, exit; the next start deletes the
-//! `.old` file. The user always decides: nothing is downloaded until they say so.
+//! Disabled in this fork: the upstream check would otherwise offer
+//! `faisalkindi/DLSS5oneclick` builds over ours. Keep the swap helpers so a
+//! future opt-in (pointed at this fork's releases) can reuse them.
 
 use anyhow::{anyhow, bail, Context, Result};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-pub const REPO: &str = "faisalkindi/DLSS5oneclick";
+/// When false, [`check`] never hits the network and the GUI/CLI offer no update.
+pub const ENABLED: bool = false;
+
+pub const REPO: &str = "branch-danya-dev/DLSS5oneclick";
 pub const CURRENT: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,6 +39,9 @@ pub fn is_newer(candidate: &str, current: &str) -> bool {
 
 /// Latest release tag from the redirect, no API call.
 pub fn check() -> Result<Option<Available>> {
+    if !ENABLED {
+        return Ok(None);
+    }
     let client = reqwest::blocking::Client::builder()
         .user_agent(concat!("DLSS5oneclick/", env!("CARGO_PKG_VERSION")))
         .redirect(reqwest::redirect::Policy::none())
@@ -151,6 +154,12 @@ pub fn cleanup_old() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn self_update_disabled() {
+        assert!(!ENABLED);
+        assert!(check().unwrap().is_none());
+    }
 
     #[test]
     fn version_is_checked_before_the_swap() {
