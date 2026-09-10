@@ -55,7 +55,7 @@ Every file is downloaded from its upstream at install time; a re-run only fetche
 3. **Install DLSS 5**.
 4. In game: **Home** opens ReShade → **Add-ons** tab → **DLSS 5 Neural Rendering** panel → enable it. Keep the game's MSAA/SSAA off. On games with their own DLSS the Home tab says "No effect files found" — expected, no shaders are needed there; the panel lives on the Add-ons tab.
 
-**F6** toggles neural rendering on/off, **F5** saves the add-on's screenshot (both are the add-on's own hotkeys). On the Feeder path, `dlss5-feed.log` next to the game exe should show `feature ready … DLAA` and `DLSS5_MV_PROVIDER=3 (LumeniteFX Kernel) -> Lumenite_Kernel (enabled)`.
+**F6** toggles neural rendering on/off, **F5** saves the add-on's screenshot (both are the add-on's own hotkeys — remappable on the Setup page under **Hotkeys**). On the Feeder path, `dlss5-feed.log` next to the game exe should show `feature ready … DLAA` and `DLSS5_MV_PROVIDER=3 (LumeniteFX Kernel) -> Lumenite_Kernel (enabled)`.
 
 CLI: `dlss5oneclick.exe "C:\Games\Foo"` (folder or exe) / `--renodx` (also install the game's RenoDX HDR mod) / `--check` (detect only, also names the RenoDX mod it would install) / `--diagnose` (read the game's ReShade/feed logs and say why neural rendering is or is not running) / `--remove` (headless, prints progress).
 

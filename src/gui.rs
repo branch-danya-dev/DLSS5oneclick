@@ -4,6 +4,7 @@
 use crate::diagnose;
 use crate::feeder_cfg::{self, FeederKnobs};
 use crate::game::{self, GameStatus};
+use crate::hotkeys::{self, GameHotkeys, KeyChord};
 use crate::installer::{self, Engine, StepState};
 use crate::library::{self, Game, Store};
 use crate::logo;
@@ -119,6 +120,12 @@ pub struct App {
     knobs: Option<FeederKnobs>,
     knobs_err: Option<String>,
     knobs_dirty: bool,
+    /// Per-game hotkeys (ReShade / NR add-on / OptiScaler).
+    hotkeys: Option<GameHotkeys>,
+    hotkeys_err: Option<String>,
+    hotkeys_dirty: bool,
+    /// Which binding is waiting for a key press (`None` = not capturing).
+    hotkey_capture: Option<HotkeySlot>,
     /// Collapsed install log shows a one-line summary.
     log_expanded: bool,
     /// First-run tip dismissed (also persisted in eframe storage / settings).
@@ -135,6 +142,15 @@ enum Page {
     Setup,
     Settings,
     About,
+}
+
+/// Which hotkey row is listening for a press.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HotkeySlot {
+    ReshadeOverlay,
+    NrToggle,
+    NrScreenshot,
+    OptiMenu,
 }
 
 /// What a poster card asked for this frame.
@@ -273,6 +289,10 @@ impl App {
             knobs: None,
             knobs_err: None,
             knobs_dirty: false,
+            hotkeys: None,
+            hotkeys_err: None,
+            hotkeys_dirty: false,
+            hotkey_capture: None,
             log_expanded: true,
             tip_dismissed: cc
                 .storage
@@ -333,6 +353,7 @@ impl App {
             self.start_renodx_lookup();
         }
         self.reload_knobs_and_perf();
+        self.reload_hotkeys();
     }
 
     fn reload_knobs_and_perf(&mut self) {
@@ -350,6 +371,29 @@ impl App {
                 self.knobs = Some(k);
             }
             Err(e) => self.knobs_err = Some(format!("{e:#}")),
+        }
+    }
+
+    fn reload_hotkeys(&mut self) {
+        self.hotkeys = None;
+        self.hotkeys_err = None;
+        self.hotkeys_dirty = false;
+        self.hotkey_capture = None;
+        let Some(Ok(st)) = self.status.as_ref() else {
+            return;
+        };
+        let game_dir = st.game_dir().to_path_buf();
+        let consumer = st.consumer_dir();
+        match hotkeys::load(&game_dir, &consumer) {
+            Ok(h) => {
+                if h.has_reshade || h.has_opti {
+                    self.hotkeys = Some(h);
+                } else {
+                    self.hotkeys_err =
+                        Some("Install first — hotkeys are written into ReShade.ini / OptiScaler.ini.".into());
+                }
+            }
+            Err(e) => self.hotkeys_err = Some(format!("{e:#}")),
         }
     }
 
@@ -2042,6 +2086,266 @@ impl App {
             }
         });
     }
+
+    fn hotkeys_panel(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(6.0);
+        ui.separator();
+        ui.label(
+            RichText::new("Hotkeys")
+                .font(t::plex_semibold(13.0))
+                .color(t::TEXT),
+        );
+        ui.label(
+            RichText::new(
+                "Click a binding, then press a key. Esc cancels. Changes apply on the next game launch \
+                 (or after ReShade/Opti reloads its ini).",
+            )
+            .font(t::plex(11.0))
+            .color(t::TEXT_DIM),
+        );
+
+        if self.hotkeys.is_none() {
+            if let Some(err) = &self.hotkeys_err {
+                ui.label(
+                    RichText::new(err.clone())
+                        .font(t::plex(12.0))
+                        .color(t::TEXT_MUTED),
+                );
+            } else {
+                ui.label(
+                    RichText::new("Select a game first.")
+                        .font(t::plex(12.0))
+                        .color(t::TEXT_DIM),
+                );
+            }
+            return;
+        }
+
+        // Capture a key while a row is armed.
+        if let Some(slot) = self.hotkey_capture {
+            let mut caught: Option<(u8, bool, bool, bool)> = None;
+            let mut cancel = false;
+            ui.input(|i| {
+                for ev in &i.events {
+                    if let egui::Event::Key {
+                        key,
+                        pressed: true,
+                        modifiers,
+                        ..
+                    } = ev
+                    {
+                        if *key == egui::Key::Escape {
+                            cancel = true;
+                            break;
+                        }
+                        if let Some(vk) = hotkeys::egui_to_vk(*key) {
+                            caught = Some((
+                                vk,
+                                modifiers.ctrl || modifiers.command,
+                                modifiers.shift,
+                                modifiers.alt,
+                            ));
+                            break;
+                        }
+                    }
+                }
+            });
+            if cancel {
+                self.hotkey_capture = None;
+            } else if let Some((vk, ctrl, shift, alt)) = caught {
+                if let Some(h) = self.hotkeys.as_mut() {
+                    match slot {
+                        HotkeySlot::ReshadeOverlay => {
+                            h.reshade_overlay = KeyChord {
+                                vk,
+                                ctrl,
+                                shift,
+                                alt,
+                            };
+                        }
+                        HotkeySlot::NrToggle => h.nr_toggle = vk,
+                        HotkeySlot::NrScreenshot => h.nr_screenshot = vk,
+                        HotkeySlot::OptiMenu => h.opti_menu = vk,
+                    }
+                    self.hotkeys_dirty = true;
+                }
+                self.hotkey_capture = None;
+            }
+        }
+
+        let capturing = self.hotkey_capture;
+        let show_reshade = self.hotkeys.as_ref().is_some_and(|h| h.has_reshade);
+        let show_opti = self.hotkeys.as_ref().is_some_and(|h| h.has_opti);
+
+        if show_reshade {
+            ui.add_space(4.0);
+            ui.label(
+                RichText::new("ReShade")
+                    .font(t::plex_medium(12.0))
+                    .color(t::TEXT_SOFT),
+            );
+            let host64 = self.hotkeys.as_ref().is_some_and(|h| h.consumer_dir != h.game_dir);
+            if host64 {
+                ui.label(
+                    RichText::new(
+                        "32-bit game: NR toggle/screenshot keys are written to host64\\ReShade.ini \
+                         (the add-on runs there). Prefer uncommon keys — the helper sees them globally.",
+                    )
+                    .font(t::plex(11.0))
+                    .color(t::WARN),
+                );
+            }
+            self.hotkey_row(
+                ui,
+                HotkeySlot::ReshadeOverlay,
+                "Overlay menu",
+                capturing,
+                |h| h.reshade_overlay.label(),
+                |h| h.reshade_overlay = KeyChord::new(hotkeys::VK_HOME),
+                |h| h.reshade_overlay = KeyChord::unbound(),
+            );
+            self.hotkey_row(
+                ui,
+                HotkeySlot::NrToggle,
+                "Toggle neural rendering",
+                capturing,
+                |h| hotkeys::vk_name(h.nr_toggle),
+                |h| h.nr_toggle = hotkeys::VK_F6,
+                |h| h.nr_toggle = 0,
+            );
+            self.hotkey_row(
+                ui,
+                HotkeySlot::NrScreenshot,
+                "NR screenshot",
+                capturing,
+                |h| hotkeys::vk_name(h.nr_screenshot),
+                |h| h.nr_screenshot = hotkeys::VK_F5,
+                |h| h.nr_screenshot = 0,
+            );
+        }
+
+        if show_opti {
+            ui.add_space(4.0);
+            ui.label(
+                RichText::new("OptiScaler")
+                    .font(t::plex_medium(12.0))
+                    .color(t::TEXT_SOFT),
+            );
+            self.hotkey_row(
+                ui,
+                HotkeySlot::OptiMenu,
+                "Overlay menu",
+                capturing,
+                |h| hotkeys::vk_name(h.opti_menu),
+                |h| h.opti_menu = hotkeys::VK_INSERT,
+                |h| h.opti_menu = 0,
+            );
+        }
+
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            let write = egui::Button::new(if self.hotkeys_dirty {
+                "Write hotkeys *"
+            } else {
+                "Write hotkeys"
+            });
+            if ui.add_enabled(self.hotkeys.is_some(), write).clicked() {
+                if let Some(h) = self.hotkeys.clone() {
+                    match hotkeys::save(&h) {
+                        Ok(()) => {
+                            self.hotkeys_dirty = false;
+                            self.log.push(LogLine::Ok(
+                                "Wrote hotkeys to ReShade.ini / OptiScaler.ini (restart the game to apply)"
+                                    .into(),
+                            ));
+                        }
+                        Err(e) => self.log.push(LogLine::Fail(format!("{e:#}"))),
+                    }
+                }
+            }
+            if ui.button("Reload from disk").clicked() {
+                self.reload_hotkeys();
+            }
+            if capturing.is_some() {
+                ui.label(
+                    RichText::new("Press a key… (Esc to cancel)")
+                        .font(t::plex(12.0))
+                        .color(t::WARN),
+                );
+            }
+        });
+    }
+
+    fn hotkey_row(
+        &mut self,
+        ui: &mut egui::Ui,
+        slot: HotkeySlot,
+        label: &str,
+        capturing: Option<HotkeySlot>,
+        current: impl Fn(&GameHotkeys) -> String,
+        reset: impl Fn(&mut GameHotkeys),
+        clear: impl Fn(&mut GameHotkeys),
+    ) {
+        let armed = capturing == Some(slot);
+        let value = self
+            .hotkeys
+            .as_ref()
+            .map(current)
+            .unwrap_or_else(|| "—".into());
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new(label)
+                    .font(t::plex(12.0))
+                    .color(t::TEXT_MUTED),
+            );
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                if ui
+                    .add(
+                        egui::Button::new(RichText::new("Clear").font(t::plex(11.0)))
+                            .min_size(Vec2::new(52.0, 22.0)),
+                    )
+                    .clicked()
+                {
+                    if let Some(h) = self.hotkeys.as_mut() {
+                        clear(h);
+                        self.hotkeys_dirty = true;
+                    }
+                    if self.hotkey_capture == Some(slot) {
+                        self.hotkey_capture = None;
+                    }
+                }
+                if ui
+                    .add(
+                        egui::Button::new(RichText::new("Reset").font(t::plex(11.0)))
+                            .min_size(Vec2::new(52.0, 22.0)),
+                    )
+                    .clicked()
+                {
+                    if let Some(h) = self.hotkeys.as_mut() {
+                        reset(h);
+                        self.hotkeys_dirty = true;
+                    }
+                    if self.hotkey_capture == Some(slot) {
+                        self.hotkey_capture = None;
+                    }
+                }
+                let btn_text = if armed {
+                    "…".to_owned()
+                } else {
+                    value.clone()
+                };
+                let btn = egui::Button::new(
+                    RichText::new(btn_text)
+                        .font(t::mono(12.0))
+                        .color(if armed { t::WARN } else { t::TEXT }),
+                )
+                .min_size(Vec2::new(120.0, 22.0));
+                if ui.add(btn).clicked() {
+                    self.hotkey_capture = if armed { None } else { Some(slot) };
+                }
+            });
+        });
+    }
 }
 
 /// The stores' own marks (Simple Icons, CC0 1.0), white PNGs tinted at paint time.
@@ -3314,6 +3618,7 @@ impl eframe::App for App {
 
                 // Offline knobs / expected FPS from Feeder perf log.
                 self.knobs_panel(ui);
+                self.hotkeys_panel(ui);
 
                 // ── progress ──────────────────────────────────────
                 let (bar, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 4.0), egui::Sense::hover());

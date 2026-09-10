@@ -6,6 +6,7 @@ mod game;
 mod gpu;
 mod gpupref;
 mod gui;
+mod hotkeys;
 mod installer;
 mod library;
 mod logo;
