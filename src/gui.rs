@@ -542,6 +542,9 @@ impl App {
                 "0".to_owned()
             },
         );
+        // Bindings from the Hotkeys panel, or stock defaults so a multi-game
+        // Install still seeds every sub-game's ReShade.ini.
+        let hotkey_template = self.hotkeys.clone().unwrap_or_default();
         let (tx, rx): (Sender<Msg>, Receiver<Msg>) = channel();
         self.rx = Some(rx);
         self.running = true;
@@ -565,6 +568,7 @@ impl App {
                     ti + 1,
                     n
                 ))));
+                let is_install = remove.is_none();
                 let out = if let Some(everything) = remove {
                     let res = if everything {
                         installer::uninstall_all(exe).map(|(mut r, kept)| {
@@ -636,8 +640,23 @@ impl App {
                 };
                 match out {
                     Ok(msg) => {
-                        ok_names.push(label);
+                        ok_names.push(label.clone());
                         let _ = tx.send(Msg::Log(LogLine::Ok(msg)));
+                        // Same hotkey bindings into every installed sub-game.
+                        if is_install {
+                            match hotkeys::save_for_exe(&hotkey_template, exe) {
+                                Ok(()) => {
+                                    let _ = tx.send(Msg::Log(LogLine::Ok(format!(
+                                        "[{label}] hotkeys written"
+                                    ))));
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(Msg::Log(LogLine::Fail(format!(
+                                        "[{label}] hotkeys: {e:#}"
+                                    ))));
+                                }
+                            }
+                        }
                     }
                     Err(e) => {
                         err_names.push(label);
@@ -2224,8 +2243,8 @@ impl App {
         );
         ui.label(
             RichText::new(
-                "Click a binding, then press a key. Esc cancels. Changes apply on the next game launch \
-                 (or after ReShade/Opti reloads its ini).",
+                "Click a binding, then press a key. Esc cancels. Write applies to every selected \
+                 collection game (or the current one). Restart each game after writing.",
             )
             .font(t::plex(11.0))
             .color(t::TEXT_DIM),
@@ -2378,15 +2397,44 @@ impl App {
             });
             if ui.add_enabled(self.hotkeys.is_some(), write).clicked() {
                 if let Some(h) = self.hotkeys.clone() {
-                    match hotkeys::save(&h) {
-                        Ok(()) => {
-                            self.hotkeys_dirty = false;
-                            self.log.push(LogLine::Ok(
-                                "Wrote hotkeys to ReShade.ini / OptiScaler.ini (restart the game to apply)"
-                                    .into(),
-                            ));
+                    let targets = self.install_targets();
+                    let root = self.input_path();
+                    let results = if targets.len() > 1 {
+                        hotkeys::save_for_exes(&h, &targets)
+                    } else if let Some(exe) = targets.first() {
+                        vec![(exe.clone(), hotkeys::save_for_exe(&h, exe))]
+                    } else {
+                        vec![(PathBuf::new(), hotkeys::save(&h))]
+                    };
+                    let mut ok_n = 0usize;
+                    let mut fail_n = 0usize;
+                    for (exe, res) in results {
+                        let label = if exe.as_os_str().is_empty() {
+                            "game".into()
+                        } else {
+                            game::exe_label(&root, &exe)
+                        };
+                        match res {
+                            Ok(()) => {
+                                ok_n += 1;
+                                self.log.push(LogLine::Ok(format!(
+                                    "[{label}] wrote hotkeys (restart that game to apply)"
+                                )));
+                            }
+                            Err(e) => {
+                                fail_n += 1;
+                                self.log
+                                    .push(LogLine::Fail(format!("[{label}] hotkeys: {e:#}")));
+                            }
                         }
-                        Err(e) => self.log.push(LogLine::Fail(format!("{e:#}"))),
+                    }
+                    if fail_n == 0 {
+                        self.hotkeys_dirty = false;
+                    }
+                    if ok_n > 1 {
+                        self.log.push(LogLine::Ok(format!(
+                            "Hotkeys written to {ok_n} games in this collection"
+                        )));
                     }
                 }
             }

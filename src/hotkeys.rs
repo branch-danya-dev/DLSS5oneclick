@@ -192,17 +192,25 @@ pub fn load(game_dir: &Path, consumer_dir: &Path) -> Result<GameHotkeys> {
 }
 
 pub fn save(h: &GameHotkeys) -> Result<()> {
-    if !h.has_reshade && !h.has_opti {
-        bail!("no ReShade.ini or OptiScaler.ini in this game folder yet — Install first");
+    save_at(h, &h.game_dir, &h.consumer_dir)
+}
+
+/// Write the binding values from `h` into another game's folders (collections).
+pub fn save_at(h: &GameHotkeys, game_dir: &Path, consumer_dir: &Path) -> Result<()> {
+    let has_reshade = game_dir.join("ReShade.ini").is_file() || consumer_dir.join("ReShade.ini").is_file();
+    let has_opti = game_dir.join(OPTI_INI).is_file();
+    if !has_reshade && !has_opti {
+        bail!(
+            "no ReShade.ini or OptiScaler.ini in {} yet — Install first",
+            game_dir.display()
+        );
     }
 
-    if h.has_reshade || h.game_dir.join("ReShade.ini").is_file() || h.consumer_dir.join("ReShade.ini").is_file()
-    {
-        // Overlay key: prefer the ReShade next to the game exe (what Home opens in-game).
-        let overlay_path = if h.game_dir.join("ReShade.ini").is_file() {
-            h.game_dir.join("ReShade.ini")
+    if has_reshade {
+        let overlay_path = if game_dir.join("ReShade.ini").is_file() {
+            game_dir.join("ReShade.ini")
         } else {
-            h.consumer_dir.join("ReShade.ini")
+            consumer_dir.join("ReShade.ini")
         };
         if overlay_path.is_file() {
             let mut ini = Ini::load(&overlay_path);
@@ -210,15 +218,14 @@ pub fn save(h: &GameHotkeys) -> Result<()> {
             ini.save(&overlay_path)?;
         }
 
-        // NR hotkeys: always the consumer ReShade.ini (host64 for 32-bit).
-        let nr_path = h.consumer_dir.join("ReShade.ini");
+        let nr_path = consumer_dir.join("ReShade.ini");
         if nr_path.is_file() {
             let mut ini = Ini::load(&nr_path);
             ini.set(SECTION_RENODX, KEY_NR_TOGGLE, h.nr_toggle.to_string());
             ini.set(SECTION_RENODX, KEY_NR_SHOT, h.nr_screenshot.to_string());
             ini.save(&nr_path)?;
-        } else if h.game_dir.join("ReShade.ini").is_file() {
-            let p = h.game_dir.join("ReShade.ini");
+        } else if game_dir.join("ReShade.ini").is_file() {
+            let p = game_dir.join("ReShade.ini");
             let mut ini = Ini::load(&p);
             ini.set(SECTION_RENODX, KEY_NR_TOGGLE, h.nr_toggle.to_string());
             ini.set(SECTION_RENODX, KEY_NR_SHOT, h.nr_screenshot.to_string());
@@ -226,8 +233,8 @@ pub fn save(h: &GameHotkeys) -> Result<()> {
         }
     }
 
-    if h.has_opti {
-        let opti = h.game_dir.join(OPTI_INI);
+    if has_opti {
+        let opti = game_dir.join(OPTI_INI);
         let text = std::fs::read_to_string(&opti)
             .with_context(|| format!("read {}", opti.display()))?;
         let value = format!("0x{:02X}", h.opti_menu);
@@ -238,6 +245,19 @@ pub fn save(h: &GameHotkeys) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Apply bindings next to `exe` (uses [`crate::game::inspect`] for host64 layout).
+pub fn save_for_exe(h: &GameHotkeys, exe: &Path) -> Result<()> {
+    let st = crate::game::inspect(exe).with_context(|| format!("inspect {}", exe.display()))?;
+    save_at(h, st.game_dir(), &st.consumer_dir())
+}
+
+/// Write the same bindings into every exe; returns per-target results.
+pub fn save_for_exes(h: &GameHotkeys, exes: &[PathBuf]) -> Vec<(PathBuf, Result<()>)> {
+    exes.iter()
+        .map(|exe| (exe.clone(), save_for_exe(h, exe)))
+        .collect()
 }
 
 fn preferred_reshade_ini(game_dir: &Path, consumer_dir: &Path) -> Option<PathBuf> {
@@ -526,5 +546,33 @@ mod tests {
         assert_eq!(host_ini.get(SECTION_RENODX, KEY_NR_TOGGLE), Some("117"));
         let game_ini = Ini::load(&game.join("ReShade.ini"));
         assert!(game_ini.get(SECTION_RENODX, KEY_NR_TOGGLE).is_none());
+    }
+
+    #[test]
+    fn save_at_writes_same_bindings_to_sibling_games() {
+        let t = tempdir().unwrap();
+        let me1 = t.path().join("ME1").join("Binaries").join("Win64");
+        let me2 = t.path().join("ME2").join("Binaries").join("Win64");
+        fs::create_dir_all(&me1).unwrap();
+        fs::create_dir_all(&me2).unwrap();
+        fs::write(me1.join("ReShade.ini"), "[INPUT]\nKeyOverlay=36,0,0,0\n").unwrap();
+        fs::write(me2.join("ReShade.ini"), "[INPUT]\nKeyOverlay=36,0,0,0\n").unwrap();
+
+        let mut h = GameHotkeys::defaults_for(&me1, &me1);
+        h.reshade_overlay = KeyChord {
+            vk: 0x70,
+            ctrl: true,
+            shift: false,
+            alt: false,
+        };
+        h.nr_toggle = 0x77;
+        save_at(&h, &me1, &me1).unwrap();
+        save_at(&h, &me2, &me2).unwrap();
+
+        for dir in [&me1, &me2] {
+            let again = load(dir, dir).unwrap();
+            assert_eq!(again.reshade_overlay.encode(), "112,1,0,0");
+            assert_eq!(again.nr_toggle, 0x77);
+        }
     }
 }
