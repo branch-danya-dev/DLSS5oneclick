@@ -1,15 +1,53 @@
 # DLSS5oneclick
 
 <p>
-  <a href="https://github.com/faisalkindi/DLSS5oneclick/releases/latest"><img src="https://img.shields.io/github/v/release/faisalkindi/DLSS5oneclick?style=flat-square&color=2878D0&label=Download" alt="Download"></a>
-  <img src="https://img.shields.io/github/downloads/faisalkindi/DLSS5oneclick/total?style=flat-square&color=16A34A&label=Downloads" alt="Downloads">
-  <img src="https://img.shields.io/github/stars/faisalkindi/DLSS5oneclick?style=flat-square&color=EAB308&label=Stars" alt="Stars">
-  <a href="https://ko-fi.com/kindiboy"><img src="https://img.shields.io/badge/Support-Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white" alt="Ko-fi"></a>
+  <a href="https://github.com/branch-danya-dev/DLSS5oneclick/releases/latest"><img src="https://img.shields.io/github/v/release/branch-danya-dev/DLSS5oneclick?style=flat-square&color=2878D0&label=Download" alt="Download this fork"></a>
+  <img src="https://img.shields.io/github/downloads/branch-danya-dev/DLSS5oneclick/total?style=flat-square&color=16A34A&label=Fork%20downloads" alt="Fork downloads">
+  <a href="https://github.com/faisalkindi/DLSS5oneclick"><img src="https://img.shields.io/badge/Upstream-faisalkindi%2FDLSS5oneclick-6B7280?style=flat-square&logo=github" alt="Upstream repository"></a>
+  <a href="https://ko-fi.com/kindiboy"><img src="https://img.shields.io/badge/Support%20upstream-Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white" alt="Support upstream author"></a>
 </p>
 
-One button that sets up the **leaked DLSS 5 neural-rendering build** in any DirectX 11/12 game, with or without DLSS of its own. Single native Windows exe, no runtime. Everything it installs is downloaded from the projects that made it; the only third-party content inside the exe is three SIL-OFL fonts.
+> [!IMPORTANT]
+> **This repository is a community fork of [faisalkindi/DLSS5oneclick](https://github.com/faisalkindi/DLSS5oneclick).**  
+> The original application, architecture and core functionality were created by **Faisal Bahashwan (`faisalkindi`)**. This fork is maintained by `branch-danya-dev` and adds quality-of-life changes on top of the upstream project. It is not an official upstream release.
 
-Download: [latest release](https://github.com/faisalkindi/DLSS5oneclick/releases/latest) → `dlss5oneclick.exe`.
+## Fork-specific changes
+
+This fork currently adds two changes while keeping the upstream installation workflow intact:
+
+### Configurable hotkeys
+
+The **Setup** page includes a **Hotkeys** section for editing the shortcuts used by the installed components without manually opening their configuration files.
+
+| Action | Config entry | Default / notes |
+|---|---|---|
+| **ReShade overlay** | `[INPUT] KeyOverlay` | Supports Ctrl / Shift / Alt modifiers |
+| **Toggle NR** | `[RenoDX.DLSS5] NRToggleKey` | F6 |
+| **NR screenshot** | `[RenoDX.DLSS5] NRScreenshotKey` | F5 |
+| **OptiScaler menu** | `[Menu] ShortcutKey` | OptiScaler shortcut |
+
+Click a hotkey button, press the key you want, then choose **Write hotkeys**. **Reset** restores the default value and **Clear** removes the binding.
+
+For **32-bit games**, ReShade runs through the 64-bit helper and its configuration may live at `host64\ReShade.ini`; the Setup page displays a warning when this applies.
+
+### Self-update disabled
+
+Automatic self-update is deliberately **disabled in this fork** so an upstream release cannot replace the modified executable with an official `faisalkindi/DLSS5oneclick` build.
+
+- Startup no longer checks upstream releases.
+- The **Check for updates** action is removed; About notes that self-update is disabled.
+- `--update` only reports that updating is disabled.
+- The implementation is controlled by `update::ENABLED = false` in `src/update.rs`.
+
+If self-update is enabled again in the future, the configured release source is this fork (`branch-danya-dev/DLSS5oneclick`), not upstream.
+
+**Download this fork:** [latest release](https://github.com/branch-danya-dev/DLSS5oneclick/releases/latest) → `dlss5oneclick.exe`.
+
+For the original project and its official releases, use [faisalkindi/DLSS5oneclick](https://github.com/faisalkindi/DLSS5oneclick).
+
+---
+
+One button that sets up the **leaked DLSS 5 neural-rendering build** in any DirectX 11/12 game, with or without DLSS of its own. Single native Windows exe, no runtime. Everything it installs is downloaded from the projects that made it; the only third-party content inside the exe is three SIL-OFL fonts.
 
 ## Two paths, picked automatically
 
@@ -52,8 +90,8 @@ Every file is downloaded from its upstream at install time; a re-run only fetche
 1. Run `dlss5oneclick.exe` (single native binary, no runtime needed).
 2. The **Games** page lists every installed game it can find — Steam (all library folders), Epic Games, GOG and Xbox / Game Pass — newest install first, with the store's own artwork (Steam's cached library art or its CDN, Xbox's tile logo, the exe icon otherwise) and, once inspected, a DirectX 11/12 chip plus "DLSS / add-on" status per card. Click a poster to open its **Setup** page. **Add a folder** / **Add a game** still take any folder or exe by hand, and a game added that way is remembered: it comes back in an **Added by you** section at the top of the list on every later start (right-click its card to forget it). **Rescan** re-reads the stores. `--list-games` prints the same list headless.
 3. On the Setup page, pick the game's **folder** (or its `.exe`) - the game exe is detected automatically (the folder and two levels below it are searched, so `bin\x64_dx12\` and Unreal `Binaries\Win64\` layouts work; Unity crash handlers, Unreal helpers and redist installers are skipped; a `*-Shipping.exe` is preferred). If several candidates remain, a dropdown lets you choose. The list shows what is already present.
-3. **Install DLSS 5**.
-4. In game: **Home** opens ReShade → **Add-ons** tab → **DLSS 5 Neural Rendering** panel → enable it. Keep the game's MSAA/SSAA off. On games with their own DLSS the Home tab says "No effect files found" — expected, no shaders are needed there; the panel lives on the Add-ons tab.
+4. **Install DLSS 5**.
+5. In game: **Home** opens ReShade → **Add-ons** tab → **DLSS 5 Neural Rendering** panel → enable it. Keep the game's MSAA/SSAA off. On games with their own DLSS the Home tab says "No effect files found" — expected, no shaders are needed there; the panel lives on the Add-ons tab.
 
 **F6** toggles neural rendering on/off, **F5** saves the add-on's screenshot (both are the add-on's own hotkeys — remappable on the Setup page under **Hotkeys**). On the Feeder path, `dlss5-feed.log` next to the game exe should show `feature ready … DLAA` and `DLSS5_MV_PROVIDER=3 (LumeniteFX Kernel) -> Lumenite_Kernel (enabled)`.
 
@@ -61,7 +99,9 @@ CLI: `dlss5oneclick.exe "C:\Games\Foo"` (folder or exe) / `--renodx` (also insta
 
 ## Updates
 
-Self-update is **disabled** in this fork so upstream `faisalkindi/DLSS5oneclick` releases are not offered or installed over it. `dlss5oneclick.exe --update` reports that and exits. To re-enable later, set `update::ENABLED` to `true` (and point `update::REPO` at the release source you want).
+Self-update is **disabled in this fork**. It does not check or install releases automatically. `dlss5oneclick.exe --update` reports that updating is disabled and exits.
+
+Manual releases of this fork are published at [branch-danya-dev/DLSS5oneclick Releases](https://github.com/branch-danya-dev/DLSS5oneclick/releases). The original project's official releases remain available from [faisalkindi/DLSS5oneclick](https://github.com/faisalkindi/DLSS5oneclick/releases).
 
 ## Downloads and GitHub
 
@@ -73,11 +113,11 @@ The tool reads the installed display adapters from the registry and refuses up f
 
 ## Verifying a download
 
-Each release's notes carry the SHA-256 of the attached `dlss5oneclick.exe`. Check yours with `certutil -hashfile dlss5oneclick.exe SHA256` (or PowerShell `Get-FileHash`). Only this repository's Releases page and the linked Nexus Mods page are legitimate sources — "DLSS 5 manager/one-click" executables from other repositories, videos or websites are not this tool, and at least one such repository distributes a 500 MB binary with no source at all.
+Each release's notes carry the SHA-256 of the attached `dlss5oneclick.exe`. Check yours with `certutil -hashfile dlss5oneclick.exe SHA256` (or PowerShell `Get-FileHash`). For this fork, download binaries only from this repository's [Releases](https://github.com/branch-danya-dev/DLSS5oneclick/releases). For official upstream binaries, use the original project's [Releases](https://github.com/faisalkindi/DLSS5oneclick/releases).
 
 ## Windows Defender / SmartScreen
 
-The exe is not code-signed (no publisher certificate), it is new, and it downloads DLLs into game folders — three things Windows heuristics dislike. Expect a SmartScreen "unknown publisher" prompt; if Defender quarantines the exe or, worse, the add-on files it placed in a game, restore them from Protection history, add the game folder as an exclusion, and re-run Install (it re-fetches only what is missing). Every release is built from the public source in this repository.
+The exe is not code-signed (no publisher certificate), it is new, and it downloads DLLs into game folders — three things Windows heuristics dislike. Expect a SmartScreen "unknown publisher" prompt; if Defender quarantines the exe or, worse, the add-on files it placed in a game, restore them from Protection history, add the game folder as an exclusion, and re-run Install (it re-fetches only what is missing). Every fork release is built from the public source in this repository.
 
 ## Known issues
 
@@ -96,7 +136,7 @@ The exe is not code-signed (no publisher certificate), it is new, and it downloa
 
 Rust 2021, single crate. GUI is egui/eframe; HTTP is reqwest (rustls); archives via the `zip` crate.
 
-```
+```text
 cargo test
 cargo build --release   # target/release/dlss5oneclick.exe
 ```
@@ -105,8 +145,9 @@ Tests use local fakes only; no network. Verified 2026-08-31: full live installs 
 
 ## Credits
 
-This tool only automates other people's work. The credit belongs to:
+This fork is based on the original DLSS5oneclick project and continues to automate work from several projects. Credit belongs to:
 
+- **[Faisal Bahashwan (`faisalkindi`)](https://github.com/faisalkindi)** — original author of [DLSS5oneclick](https://github.com/faisalkindi/DLSS5oneclick), the upstream project this repository is forked from.
 - **[crosire](https://github.com/crosire)** — [ReShade](https://reshade.me) and [reshade-shaders](https://github.com/crosire/reshade-shaders), the injection framework everything here runs inside.
 - **[jlrouzies-fr](https://github.com/jlrouzies-fr)** — [DLSS5-Feeder](https://github.com/jlrouzies-fr/DLSS5-Feeder), the add-on that builds a DLSS contract from ReShade depth + motion vectors, and the install guide this tool follows step by step.
 - **[Afzaal (Kaidō)](https://github.com/umar-afzaal)** — [LumeniteFX](https://github.com/umar-afzaal/LumeniteFX), the motion-vector provider (Kernel 2.0).
@@ -123,4 +164,4 @@ This tool only automates other people's work. The credit belongs to:
 
 ## License
 
-MIT for this tool. Each downloaded component keeps its own license: ReShade BSD-3; DLSS5-Feeder — see its repo; LumeniteFX — AGNYA; dlss5-bridge MIT; the DLSS 5 add-on (`renodx-dlss5.addon64`) — closed source, no license published; NVIDIA runtimes — NVIDIA's terms.
+This fork retains the upstream **MIT License** and the original copyright notice. Each downloaded component keeps its own license: ReShade BSD-3; DLSS5-Feeder — see its repo; LumeniteFX — AGNYA; dlss5-bridge MIT; the DLSS 5 add-on (`renodx-dlss5.addon64`) — closed source, no license published; NVIDIA runtimes — NVIDIA's terms.
