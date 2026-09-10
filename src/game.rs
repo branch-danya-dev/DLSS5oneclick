@@ -1078,7 +1078,7 @@ pub fn inspect(exe: &Path) -> Result<GameStatus> {
 }
 
 /// Helper/launcher executables that are never the game.
-const NOT_GAME: [&str; 15] = [
+const NOT_GAME: [&str; 22] = [
     "unitycrashhandler",
     "unrealcefsubprocess",
     "crashreportclient",
@@ -1094,6 +1094,14 @@ const NOT_GAME: [&str; 15] = [
     "uninstall",
     "unins",
     "setup",
+    // Collection launchers / EA touchups (Mass Effect Legendary Edition, …).
+    "launcher",
+    "touchup",
+    "cleanup",
+    "overlayinjector",
+    "originthinsetup",
+    "eadesktop",
+    "ealauncher",
 ];
 
 fn is_helper_name(stem_lower: &str) -> bool {
@@ -1213,7 +1221,14 @@ pub fn find_game_exes(dir: &Path) -> Vec<PathBuf> {
             if !folder.is_empty()
                 && (n == folder || n.starts_with(&folder) || folder.starts_with(&n))
             {
-                score += 1_000_000_000;
+                // Prefer an exact / prefix match over "folder starts with stem"
+                // (MassEffect1 matching "Mass Effect Legendary Edition" used to
+                // give every ME title the same +1e9, so size alone picked ME3).
+                if n == folder || n.starts_with(&folder) {
+                    score += 1_000_000_000;
+                } else {
+                    score += 100_000_000;
+                }
             }
             score += size.min(400_000_000);
             Some((bits, score, p))
@@ -1266,6 +1281,91 @@ pub fn resolve_target(input: &Path) -> Result<(PathBuf, Vec<PathBuf>)> {
         };
     }
     bail!("not found: {}", input.display())
+}
+
+/// Stable "which game is this exe?" identity under a shared install root.
+///
+/// Collapses Unreal `…/Game/Binaries/Win64/*-Shipping.exe` and a root
+/// `…/Game/Game.exe` to the same `Game` folder, while keeping Mass Effect LE's
+/// `ME1` / `ME2` / `ME3` (each under `…/ME*/Binaries/Win64/`) distinct.
+pub fn game_identity(exe: &Path) -> PathBuf {
+    let Some(parent) = exe.parent() else {
+        return exe.to_path_buf();
+    };
+    let leaf = parent
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let is_arch = matches!(
+        leaf.as_str(),
+        "win64" | "win32" | "x64" | "x86" | "bin" | "binaries"
+    );
+    if !is_arch {
+        return parent.to_path_buf();
+    }
+    let Some(up) = parent.parent() else {
+        return parent.to_path_buf();
+    };
+    let up_name = up
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if up_name == "binaries" {
+        return up.parent().unwrap_or(up).to_path_buf();
+    }
+    // `bin\x64` / `work\bin\x64` — identity is the folder that owns `bin`.
+    if leaf == "x64" || leaf == "x86" || leaf == "win64" || leaf == "win32" {
+        if up_name == "bin" {
+            return up.parent().unwrap_or(up).to_path_buf();
+        }
+    }
+    up.to_path_buf()
+}
+
+/// Short label for a candidate relative to `root` (collection UI / logs).
+pub fn exe_label(root: &Path, exe: &Path) -> String {
+    if let Ok(rel) = exe.strip_prefix(root) {
+        let s = rel.to_string_lossy().replace('/', "\\");
+        if !s.is_empty() {
+            return s;
+        }
+    }
+    // Prefer ME1 / ME2 style identity folder + exe name.
+    let id = game_identity(exe);
+    let id_name = id
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("");
+    let exe_name = exe
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("game.exe");
+    if !id_name.is_empty() {
+        format!("{id_name}\\{exe_name}")
+    } else {
+        exe_name.to_owned()
+    }
+}
+
+/// True when candidates are distinct sub-games under one install (MELE, …),
+/// not merely a launcher + Shipping pair for the same title.
+pub fn is_collection(candidates: &[PathBuf]) -> bool {
+    collection_members(candidates).len() >= 2
+}
+
+/// One preferred exe per distinct [`game_identity`], best-first as in `candidates`.
+pub fn collection_members(candidates: &[PathBuf]) -> Vec<PathBuf> {
+    let mut seen = std::collections::HashSet::<PathBuf>::new();
+    let mut out = Vec::new();
+    for exe in candidates {
+        let id = game_identity(exe);
+        if seen.insert(id) {
+            out.push(exe.clone());
+        }
+    }
+    out
 }
 
 /// True when ReShade/Feeder markers sit on a launcher folder but the preferred
@@ -1617,6 +1717,70 @@ mod tests {
         make_pe(&big, PE_X64);
         let (exe, _) = resolve_target(&mine).unwrap();
         assert_eq!(exe, mine);
+    }
+
+    /// Mass Effect Legendary Edition-style layout: three games + a launcher
+    /// under one Steam folder. Collection members are ME1/ME2/ME3 only.
+    #[test]
+    fn collection_detects_mass_effect_legendary_edition_layout() {
+        let t = tempfile::tempdir().unwrap();
+        let root = t.path().join("Mass Effect Legendary Edition");
+        for (sub, name) in [
+            ("Game/Launcher", "MassEffectLauncher.exe"),
+            ("Game/ME1/Binaries/Win64", "MassEffect1.exe"),
+            ("Game/ME2/Binaries/Win64", "MassEffect2.exe"),
+            ("Game/ME3/Binaries/Win64", "MassEffect3.exe"),
+        ] {
+            let d = root.join(sub);
+            fs::create_dir_all(&d).unwrap();
+            make_pe(&d.join(name), PE_X64);
+        }
+        let all = find_game_exes(&root);
+        assert!(
+            all.iter().all(|p| {
+                !p.file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("")
+                    .eq_ignore_ascii_case("MassEffectLauncher.exe")
+            }),
+            "launcher must be filtered: {all:?}"
+        );
+        let members = collection_members(&all);
+        assert!(is_collection(&all));
+        assert_eq!(members.len(), 3, "{members:?}");
+        let names: Vec<_> = members
+            .iter()
+            .filter_map(|p| p.file_stem()?.to_str())
+            .collect();
+        assert!(names.contains(&"MassEffect1"));
+        assert!(names.contains(&"MassEffect2"));
+        assert!(names.contains(&"MassEffect3"));
+        // Labels stay readable relative to the Steam folder.
+        let label = exe_label(&root, &members[0]);
+        assert!(
+            label.contains("ME1") || label.contains("ME2") || label.contains("ME3"),
+            "{label}"
+        );
+    }
+
+    /// Launcher + Shipping for one Unreal title is not a multi-game collection.
+    #[test]
+    fn collection_ignores_unreal_launcher_plus_shipping() {
+        let t = tempfile::tempdir().unwrap();
+        let root = t.path().join("Ghostrunner");
+        let game = root.join("Game");
+        fs::create_dir_all(game.join("Binaries").join("Win64")).unwrap();
+        make_pe(&game.join("Ghostrunner.exe"), PE_X64);
+        make_pe(
+            &game
+                .join("Binaries")
+                .join("Win64")
+                .join("Ghostrunner-Win64-Shipping.exe"),
+            PE_X64,
+        );
+        let all = find_game_exes(&root);
+        assert!(!is_collection(&all), "{all:?}");
+        assert_eq!(collection_members(&all).len(), 1);
     }
 
     /// The one substitution that is still right: an Unreal launcher beside its

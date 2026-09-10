@@ -19,7 +19,7 @@ use crate::update;
 use eframe::egui::{
     self, Align, Color32, CornerRadius, Frame, Layout, Margin, RichText, Stroke, StrokeKind, Vec2,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
@@ -59,6 +59,8 @@ pub struct App {
     last_error: Option<String>,
     candidates: Vec<PathBuf>,
     resolved_exe: Option<PathBuf>,
+    /// When the folder is a multi-game collection (MELE, …), which exes to Install/Remove.
+    collection_selected: HashSet<PathBuf>,
     engine: Engine,
     update: UpdateState,
     update_rx: Option<Receiver<UpdateState>>,
@@ -252,6 +254,7 @@ impl App {
             last_error: None,
             candidates: Vec::new(),
             resolved_exe: None,
+            collection_selected: HashSet::new(),
             engine: Engine::default(),
             update: UpdateState::Idle,
             update_rx: None,
@@ -323,6 +326,7 @@ impl App {
     fn refresh(&mut self) {
         let input = self.input_path();
         let prev = self.resolved_exe.take();
+        let prev_sel = std::mem::take(&mut self.collection_selected);
         self.candidates.clear();
         if input.as_os_str().is_empty() {
             self.status = None;
@@ -335,6 +339,21 @@ impl App {
                     _ => exe,
                 });
                 self.candidates = cands;
+                let members = game::collection_members(&self.candidates);
+                if members.len() >= 2 {
+                    // Keep prior ticks when still valid; otherwise select every sub-game.
+                    let kept: HashSet<PathBuf> = prev_sel
+                        .into_iter()
+                        .filter(|p| members.iter().any(|m| m == p))
+                        .collect();
+                    self.collection_selected = if kept.is_empty() {
+                        members.into_iter().collect()
+                    } else {
+                        kept
+                    };
+                } else {
+                    self.collection_selected.clear();
+                }
             }
             Err(e) => {
                 self.status = Some(Err(format!("{e:#}")));
@@ -342,6 +361,25 @@ impl App {
             }
         }
         self.inspect_resolved();
+    }
+
+    /// Targets for Install / Remove: collection selection, or the single resolved exe.
+    fn install_targets(&self) -> Vec<PathBuf> {
+        let members = game::collection_members(&self.candidates);
+        if members.len() >= 2 {
+            let mut v: Vec<PathBuf> = members
+                .into_iter()
+                .filter(|p| self.collection_selected.contains(p))
+                .collect();
+            if v.is_empty() {
+                if let Some(exe) = self.resolved_exe.clone() {
+                    v.push(exe);
+                }
+            }
+            v
+        } else {
+            self.exe().into_iter().collect()
+        }
     }
 
     fn inspect_resolved(&mut self) {
@@ -465,7 +503,15 @@ impl App {
     }
 
     fn start(&mut self, remove: Option<bool>) {
-        let Some(exe) = self.exe() else { return };
+        let targets = self.install_targets();
+        if targets.is_empty() {
+            return;
+        }
+        let root = self.input_path();
+        let labels: Vec<String> = targets
+            .iter()
+            .map(|p| game::exe_label(&root, p))
+            .collect();
         let engine = self.engine;
         let with_renodx = self.renodx_on;
         let upstream = self.upstream_on;
@@ -504,56 +550,121 @@ impl App {
         self.log.clear();
         self.last_error = None;
         thread::spawn(move || {
-            let out = if let Some(everything) = remove {
-                let res = if everything {
-                    installer::uninstall_all(&exe).map(|(mut r, kept)| {
-                        r.extend(kept);
-                        r
+            let n = targets.len();
+            let mut ok_names = Vec::new();
+            let mut err_names = Vec::new();
+            for (ti, exe) in targets.iter().enumerate() {
+                let label = labels.get(ti).cloned().unwrap_or_else(|| {
+                    exe.file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| exe.display().to_string())
+                });
+                let _ = tx.send(Msg::Log(LogLine::Step(format!(
+                    "—— {} ({}/{}) ——",
+                    label,
+                    ti + 1,
+                    n
+                ))));
+                let out = if let Some(everything) = remove {
+                    let res = if everything {
+                        installer::uninstall_all(exe).map(|(mut r, kept)| {
+                            r.extend(kept);
+                            r
+                        })
+                    } else {
+                        installer::uninstall(exe)
+                    };
+                    res.map(|r| {
+                        format!(
+                            "Removed from {label}: {}",
+                            if r.is_empty() {
+                                "nothing".into()
+                            } else {
+                                r.join(", ")
+                            }
+                        )
                     })
+                    .map_err(|e| format!("{label}: {e:#}"))
                 } else {
-                    installer::uninstall(&exe)
-                };
-                res.map(|r| {
-                    format!(
-                        "Removed: {}",
-                        if r.is_empty() {
-                            "nothing".into()
+                    let p_tx = tx.clone();
+                    let s_tx = tx.clone();
+                    let label_p = label.clone();
+                    let label_s = label.clone();
+                    let base = ((ti as f32) / (n as f32) * 100.0) as u8;
+                    let span = (100.0 / n as f32).max(1.0) as u8;
+                    installer::run_all(
+                        exe,
+                        engine,
+                        with_renodx,
+                        upstream,
+                        &move |pct, msg| {
+                            let scaled =
+                                base.saturating_add(((pct as u16 * span as u16) / 100) as u8);
+                            let _ = p_tx.send(Msg::Progress(
+                                scaled.min(99),
+                                format!("[{label_p}] {msg}"),
+                            ));
+                        },
+                        &move |i, steps, name, state, detail| {
+                            let line = match state {
+                                StepState::Start => {
+                                    LogLine::Step(format!(
+                                        "[{label_s}] [{}/{steps}] {name}",
+                                        i + 1
+                                    ))
+                                }
+                                StepState::Done => {
+                                    LogLine::Ok(format!("[{label_s}] ok: {detail}"))
+                                }
+                                StepState::Error => {
+                                    LogLine::Fail(format!("[{label_s}] FAILED: {detail}"))
+                                }
+                            };
+                            let _ = s_tx.send(Msg::Log(line));
+                        },
+                    )
+                    .map(|_| {
+                        if engine == Engine::Opti {
+                            format!("{label}: Insert → OptiScaler overlay → enable Neural Rendering.")
                         } else {
-                            r.join(", ")
+                            format!(
+                                "{label}: Home → Add-ons → DLSS 5 Neural Rendering → enable."
+                            )
                         }
+                    })
+                    .map_err(|e| format!("{label}: {e:#}"))
+                };
+                match out {
+                    Ok(msg) => {
+                        ok_names.push(label);
+                        let _ = tx.send(Msg::Log(LogLine::Ok(msg)));
+                    }
+                    Err(e) => {
+                        err_names.push(label);
+                        let _ = tx.send(Msg::Log(LogLine::Fail(e)));
+                    }
+                }
+            }
+            let summary = if err_names.is_empty() {
+                Ok(if n == 1 {
+                    ok_names.pop().unwrap_or_else(|| "Done.".into())
+                } else {
+                    format!(
+                        "Done for {} game(s): {}. Enable DLSS 5 in each title's overlay.",
+                        ok_names.len(),
+                        ok_names.join(", ")
                     )
                 })
-                .map_err(|e| format!("{e:#}"))
+            } else if ok_names.is_empty() {
+                Err(format!("Failed: {}", err_names.join("; ")))
             } else {
-                let p_tx = tx.clone();
-                let s_tx = tx.clone();
-                installer::run_all(
-                    &exe,
-                    engine,
-                    with_renodx,
-                    upstream,
-                    &move |pct, msg| {
-                        let _ = p_tx.send(Msg::Progress(pct, msg.to_owned()));
-                    },
-                    &move |i, n, name, state, detail| {
-                        let line = match state {
-                            StepState::Start => LogLine::Step(format!("[{}/{n}] {name}", i + 1)),
-                            StepState::Done => LogLine::Ok(format!("ok: {detail}")),
-                            StepState::Error => LogLine::Fail(format!("FAILED: {detail}")),
-                        };
-                        let _ = s_tx.send(Msg::Log(line));
-                    },
-                )
-                .map(|_| {
-                    if engine == Engine::Opti {
-                        "Done. In game: Insert opens the OptiScaler overlay → enable Neural Rendering.".to_owned()
-                    } else {
-                        "Done. In game: Home opens ReShade → Add-ons tab → DLSS 5 Neural Rendering → enable. (Home tab saying \"no effect files\" is normal on games with their own DLSS.)".to_owned()
-                    }
-                })
-                .map_err(|e| format!("{e:#}"))
+                Err(format!(
+                    "Partial: ok [{}]; failed [{}]",
+                    ok_names.join(", "),
+                    err_names.join(", ")
+                ))
             };
-            let _ = tx.send(Msg::Finished(out));
+            let _ = tx.send(Msg::Finished(summary));
         });
     }
 
@@ -679,8 +790,15 @@ impl App {
 
     /// Install / Update from a Games card: resolve Shipping exe, keep progress on the card.
     fn update_game(&mut self, path: PathBuf, index: usize) {
-        // Prefer the canonical Shipping exe from meta when we already inspected it.
-        let target = self.meta.get(&index).map(|m| m.exe.clone()).unwrap_or(path);
+        // Prefer the library folder so collections (Mass Effect LE, …) keep every
+        // sub-game candidate. Meta's single exe would wipe the list.
+        let target = self
+            .games
+            .get(index)
+            .map(|g| g.dir.clone())
+            .filter(|d| d.is_dir())
+            .or_else(|| self.meta.get(&index).map(|m| m.exe.clone()))
+            .unwrap_or(path);
         self.exe_text = target.to_string_lossy().into_owned();
         self.refresh();
         if let Some(Ok(st)) = &self.status {
@@ -688,6 +806,7 @@ impl App {
                 self.page = Page::Setup;
                 return;
             }
+            // Collections default to every sub-game selected; Install them all.
             self.engine = if st.opti {
                 Engine::Opti
             } else {
@@ -2978,15 +3097,60 @@ impl eframe::App for App {
                 // ── game exe line ─────────────────────────────────
                 if let Some(exe) = self.resolved_exe.clone() {
                     let base = self.input_path();
-                    let short = |p: &PathBuf| -> String {
-                        p.strip_prefix(&base)
-                            .map(|r| r.to_string_lossy().into_owned())
-                            .unwrap_or_else(|_| p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default())
-                    };
+                    let short = |p: &PathBuf| -> String { game::exe_label(&base, p) };
+                    let members = game::collection_members(&self.candidates);
+                    let collection = members.len() >= 2;
+                    if collection {
+                        ui.label(
+                            RichText::new(format!(
+                                "Collection — {} games in this folder (install into each you tick)",
+                                members.len()
+                            ))
+                            .font(t::plex_medium(12.5))
+                            .color(t::WARN),
+                        );
+                        ui.add_space(4.0);
+                        for c in &members {
+                            let mut on = self.collection_selected.contains(c);
+                            let label = short(c);
+                            if ui
+                                .checkbox(
+                                    &mut on,
+                                    RichText::new(label).font(t::mono(11.5)).color(t::TEXT_SOFT),
+                                )
+                                .changed()
+                            {
+                                if on {
+                                    self.collection_selected.insert(c.clone());
+                                    self.resolved_exe = Some(c.clone());
+                                    self.inspect_resolved();
+                                } else {
+                                    self.collection_selected.remove(c);
+                                }
+                            }
+                        }
+                        ui.horizontal(|ui| {
+                            if ui.small_button("Select all").clicked() {
+                                self.collection_selected = members.iter().cloned().collect();
+                            }
+                            if ui.small_button("Select none").clicked() {
+                                self.collection_selected.clear();
+                            }
+                        });
+                        ui.add_space(4.0);
+                    }
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 8.0;
-                        ui.label(RichText::new("Game exe").font(t::plex(12.0)).color(t::TEXT_MUTED));
-                        if self.candidates.len() > 1 {
+                        ui.label(
+                            RichText::new(if collection {
+                                "Inspecting"
+                            } else {
+                                "Game exe"
+                            })
+                            .font(t::plex(12.0))
+                            .color(t::TEXT_MUTED),
+                        );
+                        if !collection && self.candidates.len() > 1 {
                             let mut pick = exe.clone();
                             egui::ComboBox::from_id_salt("exe_pick")
                                 .selected_text(RichText::new(short(&pick)).font(t::mono(11.5)))
@@ -3524,10 +3688,23 @@ impl eframe::App for App {
                 }
 
                 // ── actions ───────────────────────────────────────
-                let can_run = ok_status.is_some() && problems.is_empty() && !self.running;
+                let collection_ok = !game::is_collection(&self.candidates)
+                    || !self.collection_selected.is_empty();
+                let can_run =
+                    ok_status.is_some() && problems.is_empty() && !self.running && collection_ok;
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 10.0;
-                    let install = egui::Button::new(RichText::new("Install DLSS 5").font(t::plex_semibold(14.0)).color(t::BG))
+                    let n_sel = self.install_targets().len();
+                    let install_label = if game::is_collection(&self.candidates) && n_sel > 1 {
+                        format!("Install DLSS 5 ({n_sel} games)")
+                    } else {
+                        "Install DLSS 5".to_owned()
+                    };
+                    let install = egui::Button::new(
+                        RichText::new(install_label)
+                            .font(t::plex_semibold(14.0))
+                            .color(t::BG),
+                    )
                         .fill(t::ACCENT)
                         .stroke(Stroke::NONE)
                         .corner_radius(CornerRadius::same(8))
