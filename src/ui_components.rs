@@ -4,10 +4,6 @@ use crate::theme::{self as t};
 use eframe::egui::{self, Align, Color32, Frame, Layout, Margin, RichText, Sense, Stroke, Vec2};
 
 /// Centre a column capped at [`t::CONTENT_MAX_WIDTH`].
-///
-/// Uses an explicit `max_rect` instead of `horizontal` nesting — a horizontal
-/// row + fill-height `ScrollArea` was clipping page chrome and painting a large
-/// empty slab over the window.
 pub fn content_column(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
     let full = ui.available_rect_before_wrap();
     let width = (full.width() - t::CONTENT_PAD_X * 2.0)
@@ -36,40 +32,40 @@ pub fn card_frame() -> Frame {
         .fill(t::SURFACE)
         .stroke(Stroke::new(1.0, t::BORDER))
         .corner_radius(t::card_rounding())
-        .inner_margin(Margin::same(14))
+        .inner_margin(Margin::same(16))
 }
 
 pub fn card_elevated() -> Frame {
     Frame::new()
         .fill(t::SURFACE_ALT)
-        .stroke(Stroke::new(1.0, t::BORDER))
+        .stroke(Stroke::new(1.0, t::BORDER_STRONG))
         .corner_radius(t::card_rounding())
-        .inner_margin(Margin::same(14))
+        .inner_margin(Margin::same(18))
 }
 
 pub fn section_card(ui: &mut egui::Ui, title: &str, add_contents: impl FnOnce(&mut egui::Ui)) {
     card_frame().show(ui, |ui| {
         ui.label(
             RichText::new(title)
-                .font(t::plex_semibold(13.5))
+                .font(t::plex_semibold(14.5))
                 .color(t::TEXT),
         );
-        ui.add_space(8.0);
+        ui.add_space(10.0);
         add_contents(ui);
     });
 }
 
 pub fn page_title(ui: &mut egui::Ui, title: &str, subtitle: Option<&str>) {
-    ui.label(RichText::new(title).font(t::sora(22.0)).color(t::TEXT));
+    ui.label(RichText::new(title).font(t::sora(24.0)).color(t::TEXT));
     if let Some(sub) = subtitle {
-        ui.add_space(2.0);
+        ui.add_space(3.0);
         ui.label(
             RichText::new(sub)
-                .font(t::plex(13.0))
+                .font(t::plex(13.5))
                 .color(t::TEXT_SECONDARY),
         );
     }
-    ui.add_space(12.0);
+    ui.add_space(14.0);
 }
 
 #[derive(Clone, Copy)]
@@ -106,9 +102,9 @@ pub fn chip(ui: &mut egui::Ui, text: &str, tone: ChipTone) {
         .fill(bg)
         .stroke(Stroke::new(1.0, border))
         .corner_radius(t::chip_rounding())
-        .inner_margin(Margin::symmetric(8, 3))
+        .inner_margin(Margin::symmetric(9, 4))
         .show(ui, |ui| {
-            ui.label(RichText::new(text).font(t::plex_medium(11.0)).color(fg));
+            ui.label(RichText::new(text).font(t::plex_medium(11.5)).color(fg));
         });
 }
 
@@ -121,7 +117,7 @@ pub fn primary_button(text: impl Into<String>) -> egui::Button<'static> {
     .fill(t::PRIMARY)
     .stroke(Stroke::NONE)
     .corner_radius(t::control_rounding())
-    .min_size(Vec2::new(160.0, 40.0))
+    .min_size(Vec2::new(168.0, 42.0))
 }
 
 pub fn secondary_button(text: impl Into<String>) -> egui::Button<'static> {
@@ -130,10 +126,10 @@ pub fn secondary_button(text: impl Into<String>) -> egui::Button<'static> {
             .font(t::plex_medium(13.0))
             .color(t::TEXT_SECONDARY),
     )
-    .fill(Color32::TRANSPARENT)
+    .fill(t::SURFACE)
     .stroke(Stroke::new(1.0, t::BORDER_STRONG))
     .corner_radius(t::control_rounding())
-    .min_size(Vec2::new(96.0, 40.0))
+    .min_size(Vec2::new(104.0, 40.0))
 }
 
 pub fn ghost_button(text: impl Into<String>) -> egui::Button<'static> {
@@ -157,32 +153,33 @@ pub fn nav_tab(ui: &mut egui::Ui, label: &str, active: bool, enabled: bool) -> e
             t::TEXT_SECONDARY,
         )
     };
-    let btn = egui::Button::new(RichText::new(label).font(t::plex_medium(13.0)).color(fg))
+    let btn = egui::Button::new(RichText::new(label).font(t::plex_medium(13.5)).color(fg))
         .fill(fill)
         .stroke(stroke)
         .corner_radius(t::control_rounding())
-        .min_size(Vec2::new(88.0, 34.0));
+        .min_size(Vec2::new(94.0, 36.0));
     ui.add_enabled(enabled, btn)
 }
 
 pub fn summary_stat(ui: &mut egui::Ui, label: &str, value: impl Into<String>) {
+    let w = ui.available_width().max(110.0);
     Frame::new()
-        .fill(t::SURFACE_ALT)
+        .fill(t::SURFACE)
         .stroke(Stroke::new(1.0, t::BORDER))
         .corner_radius(t::control_rounding())
-        .inner_margin(Margin::symmetric(12, 8))
+        .inner_margin(Margin::symmetric(14, 10))
         .show(ui, |ui| {
-            ui.set_min_width(88.0);
+            ui.set_min_width(w - 28.0);
             ui.vertical(|ui| {
                 ui.label(
-                    RichText::new(label)
-                        .font(t::plex(11.0))
-                        .color(t::TEXT_MUTED),
+                    RichText::new(value.into())
+                        .font(t::plex_semibold(20.0))
+                        .color(t::TEXT),
                 );
                 ui.label(
-                    RichText::new(value.into())
-                        .font(t::plex_semibold(18.0))
-                        .color(t::TEXT),
+                    RichText::new(label)
+                        .font(t::plex(11.5))
+                        .color(t::TEXT_MUTED),
                 );
             });
         });
@@ -194,11 +191,12 @@ pub fn info_banner(ui: &mut egui::Ui, title: &str, body: &str) -> bool {
         .fill(t::WARNING_SOFT)
         .stroke(Stroke::new(1.0, Color32::from_rgb(0x7a, 0x5a, 0x22)))
         .corner_radius(t::control_rounding())
-        .inner_margin(Margin::symmetric(12, 8))
+        .inner_margin(Margin::symmetric(14, 9))
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
+            ui.set_min_height(24.0);
             ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 8.0;
+                ui.spacing_mut().item_spacing.x = 9.0;
                 ui.label(
                     RichText::new(title)
                         .font(t::plex_semibold(12.5))
@@ -223,26 +221,29 @@ pub fn info_banner(ui: &mut egui::Ui, title: &str, body: &str) -> bool {
 }
 
 pub fn summary_stat_dot(ui: &mut egui::Ui, label: &str, value: impl Into<String>, dot: Color32) {
+    let w = ui.available_width().max(120.0);
     Frame::new()
-        .fill(t::SURFACE_ALT)
+        .fill(t::SURFACE)
         .stroke(Stroke::new(1.0, t::BORDER))
         .corner_radius(t::control_rounding())
         .inner_margin(Margin::symmetric(14, 10))
         .show(ui, |ui| {
-            ui.set_min_width(100.0);
+            ui.set_min_width((w - 28.0).max(92.0));
+            ui.set_min_height(44.0);
             ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 8.0;
+                ui.spacing_mut().item_spacing.x = 9.0;
                 let (r, _) = ui.allocate_exact_size(Vec2::splat(8.0), Sense::hover());
                 ui.painter().circle_filled(r.center(), 3.5, dot);
                 ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing.y = 1.0;
                     ui.label(
                         RichText::new(value.into())
-                            .font(t::plex_semibold(18.0))
+                            .font(t::plex_semibold(20.0))
                             .color(t::TEXT),
                     );
                     ui.label(
                         RichText::new(label)
-                            .font(t::plex(11.0))
+                            .font(t::plex(11.5))
                             .color(t::TEXT_MUTED),
                     );
                 });
@@ -274,15 +275,16 @@ pub fn selectable_option(
         .fill(fill)
         .stroke(stroke)
         .corner_radius(t::control_rounding())
-        .inner_margin(Margin::same(12))
+        .inner_margin(Margin::same(14))
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.label(
                 RichText::new(title)
-                    .font(t::plex_semibold(13.0))
+                    .font(t::plex_semibold(13.5))
                     .color(title_c),
             );
-            ui.label(RichText::new(detail).font(t::plex(11.5)).color(detail_c));
+            ui.add_space(2.0);
+            ui.label(RichText::new(detail).font(t::plex(12.0)).color(detail_c));
         });
     let resp = inner.response.interact(if enabled {
         Sense::click()
