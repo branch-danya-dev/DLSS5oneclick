@@ -183,9 +183,11 @@ pub fn load(game_dir: &Path, consumer_dir: &Path) -> Result<GameHotkeys> {
     let opti = game_dir.join(OPTI_INI);
     if opti.is_file() {
         h.has_opti = true;
-        let text = std::fs::read_to_string(&opti)
-            .with_context(|| format!("read {}", opti.display()))?;
-        h.opti_menu = parse_opti_shortcut(ini_get_section_key(&text, SECTION_OPTI_MENU, KEY_OPTI_SHORTCUT).as_deref());
+        let text =
+            std::fs::read_to_string(&opti).with_context(|| format!("read {}", opti.display()))?;
+        h.opti_menu = parse_opti_shortcut(
+            ini_get_section_key(&text, SECTION_OPTI_MENU, KEY_OPTI_SHORTCUT).as_deref(),
+        );
     }
 
     Ok(h)
@@ -197,7 +199,8 @@ pub fn save(h: &GameHotkeys) -> Result<()> {
 
 /// Write the binding values from `h` into another game's folders (collections).
 pub fn save_at(h: &GameHotkeys, game_dir: &Path, consumer_dir: &Path) -> Result<()> {
-    let has_reshade = game_dir.join("ReShade.ini").is_file() || consumer_dir.join("ReShade.ini").is_file();
+    let has_reshade =
+        game_dir.join("ReShade.ini").is_file() || consumer_dir.join("ReShade.ini").is_file();
     let has_opti = game_dir.join(OPTI_INI).is_file();
     if !has_reshade && !has_opti {
         bail!(
@@ -235,10 +238,11 @@ pub fn save_at(h: &GameHotkeys, game_dir: &Path, consumer_dir: &Path) -> Result<
 
     if has_opti {
         let opti = game_dir.join(OPTI_INI);
-        let text = std::fs::read_to_string(&opti)
-            .with_context(|| format!("read {}", opti.display()))?;
+        let text =
+            std::fs::read_to_string(&opti).with_context(|| format!("read {}", opti.display()))?;
         let value = format!("0x{:02X}", h.opti_menu);
-        if let Some(new) = installer::set_ini_key(&text, SECTION_OPTI_MENU, KEY_OPTI_SHORTCUT, &value)
+        if let Some(new) =
+            installer::set_ini_key(&text, SECTION_OPTI_MENU, KEY_OPTI_SHORTCUT, &value)
         {
             std::fs::write(&opti, new).with_context(|| format!("write {}", opti.display()))?;
         }

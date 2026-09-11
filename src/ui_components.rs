@@ -1,15 +1,16 @@
 //! Small reusable visual helpers for the redesign. No business logic.
 
 use crate::theme::{self as t};
-use eframe::egui::{
-    self, Align, Color32, Frame, Layout, Margin, RichText, Sense, Stroke, Vec2,
-};
+use eframe::egui::{self, Align, Color32, Frame, Layout, Margin, RichText, Sense, Stroke, Vec2};
 
 /// Centre a column capped at [`t::CONTENT_MAX_WIDTH`].
 pub fn content_column(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
     let avail = ui.available_width();
-    let width = avail.min(t::CONTENT_MAX_WIDTH);
+    let width = (avail - t::CONTENT_PAD_X * 2.0)
+        .min(t::CONTENT_MAX_WIDTH)
+        .max(0.0);
     let side = ((avail - width) * 0.5).max(0.0);
+    ui.add_space(t::CONTENT_PAD_Y * 0.25);
     ui.horizontal(|ui| {
         if side > 0.0 {
             ui.add_space(side);
@@ -68,6 +69,7 @@ pub fn page_title(ui: &mut egui::Ui, title: &str, subtitle: Option<&str>) {
 }
 
 #[derive(Clone, Copy)]
+#[allow(dead_code)]
 pub enum ChipTone {
     Neutral,
     Primary,
@@ -80,9 +82,21 @@ pub fn chip(ui: &mut egui::Ui, text: &str, tone: ChipTone) {
     let (fg, bg, border) = match tone {
         ChipTone::Neutral => (t::TEXT_SECONDARY, t::SURFACE_ALT, t::BORDER),
         ChipTone::Primary => (t::PRIMARY_HOVER, t::PRIMARY_SOFT, t::BORDER_ACTIVE),
-        ChipTone::Success => (t::SUCCESS, t::SUCCESS_SOFT, Color32::from_rgb(0x2e, 0x6b, 0x45)),
-        ChipTone::Warning => (t::WARNING, t::WARNING_SOFT, Color32::from_rgb(0x7a, 0x5a, 0x22)),
-        ChipTone::Danger => (t::DANGER, t::DANGER_SOFT, Color32::from_rgb(0x7a, 0x2e, 0x2e)),
+        ChipTone::Success => (
+            t::SUCCESS,
+            t::SUCCESS_SOFT,
+            Color32::from_rgb(0x2e, 0x6b, 0x45),
+        ),
+        ChipTone::Warning => (
+            t::WARNING,
+            t::WARNING_SOFT,
+            Color32::from_rgb(0x7a, 0x5a, 0x22),
+        ),
+        ChipTone::Danger => (
+            t::DANGER,
+            t::DANGER_SOFT,
+            Color32::from_rgb(0x7a, 0x2e, 0x2e),
+        ),
     };
     Frame::new()
         .fill(bg)
@@ -257,6 +271,13 @@ pub fn truncate_path(s: &str, max_chars: usize) -> String {
     let start = keep / 2;
     let end = keep - start;
     let head: String = chars.iter().take(start).collect();
-    let tail: String = chars.iter().rev().take(end).collect::<Vec<_>>().into_iter().rev().collect();
+    let tail: String = chars
+        .iter()
+        .rev()
+        .take(end)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
     format!("{head}…{tail}")
 }

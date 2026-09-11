@@ -14,6 +14,7 @@ pub const BG: Color32 = Color32::from_rgb(0x0b, 0x0f, 0x17);
 pub const SURFACE: Color32 = Color32::from_rgb(0x11, 0x17, 0x22);
 pub const SURFACE_ALT: Color32 = Color32::from_rgb(0x16, 0x1e, 0x2b);
 pub const SURFACE_HOVER: Color32 = Color32::from_rgb(0x1b, 0x25, 0x34);
+#[allow(dead_code)]
 pub const SURFACE_ELEVATED: Color32 = SURFACE_ALT;
 
 // ── borders ────────────────────────────────────────────────────────

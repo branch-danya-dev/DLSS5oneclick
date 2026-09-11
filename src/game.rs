@@ -1334,10 +1334,7 @@ pub fn exe_label(root: &Path, exe: &Path) -> String {
     }
     // Prefer ME1 / ME2 style identity folder + exe name.
     let id = game_identity(exe);
-    let id_name = id
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("");
+    let id_name = id.file_name().and_then(|n| n.to_str()).unwrap_or("");
     let exe_name = exe
         .file_name()
         .and_then(|n| n.to_str())

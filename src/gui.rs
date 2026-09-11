@@ -5,7 +5,7 @@ use crate::diagnose;
 use crate::feeder_cfg::{self, FeederKnobs};
 use crate::game::{self, GameStatus};
 use crate::hotkeys::{self, GameHotkeys, KeyChord};
-use crate::i18n::{fmt_n, Language, T};
+use crate::i18n::{fmt_n, fmt_vc, Language, T};
 use crate::installer::{self, Engine, StepState};
 use crate::library::{self, Game, Store};
 use crate::logo;
@@ -430,8 +430,7 @@ impl App {
                 if h.has_reshade || h.has_opti {
                     self.hotkeys = Some(h);
                 } else {
-                    self.hotkeys_err =
-                        Some("Install first — hotkeys are written into ReShade.ini / OptiScaler.ini.".into());
+                    self.hotkeys_err = Some(self.tr(T::InstallHotkeysFirst).into());
                 }
             }
             Err(e) => self.hotkeys_err = Some(format!("{e:#}")),
@@ -509,10 +508,7 @@ impl App {
             return;
         }
         let root = self.input_path();
-        let labels: Vec<String> = targets
-            .iter()
-            .map(|p| game::exe_label(&root, p))
-            .collect();
+        let labels: Vec<String> = targets.iter().map(|p| game::exe_label(&root, p)).collect();
         let engine = self.engine;
         let with_renodx = self.renodx_on;
         let upstream = self.upstream_on;
@@ -605,22 +601,15 @@ impl App {
                         &move |pct, msg| {
                             let scaled =
                                 base.saturating_add(((pct as u16 * span as u16) / 100) as u8);
-                            let _ = p_tx.send(Msg::Progress(
-                                scaled.min(99),
-                                format!("[{label_p}] {msg}"),
-                            ));
+                            let _ = p_tx
+                                .send(Msg::Progress(scaled.min(99), format!("[{label_p}] {msg}")));
                         },
                         &move |i, steps, name, state, detail| {
                             let line = match state {
                                 StepState::Start => {
-                                    LogLine::Step(format!(
-                                        "[{label_s}] [{}/{steps}] {name}",
-                                        i + 1
-                                    ))
+                                    LogLine::Step(format!("[{label_s}] [{}/{steps}] {name}", i + 1))
                                 }
-                                StepState::Done => {
-                                    LogLine::Ok(format!("[{label_s}] ok: {detail}"))
-                                }
+                                StepState::Done => LogLine::Ok(format!("[{label_s}] ok: {detail}")),
                                 StepState::Error => {
                                     LogLine::Fail(format!("[{label_s}] FAILED: {detail}"))
                                 }
@@ -630,11 +619,11 @@ impl App {
                     )
                     .map(|_| {
                         if engine == Engine::Opti {
-                            format!("{label}: Insert → OptiScaler overlay → enable Neural Rendering.")
-                        } else {
                             format!(
-                                "{label}: Home → Add-ons → DLSS 5 Neural Rendering → enable."
+                                "{label}: Insert → OptiScaler overlay → enable Neural Rendering."
                             )
+                        } else {
+                            format!("{label}: Home → Add-ons → DLSS 5 Neural Rendering → enable.")
                         }
                     })
                     .map_err(|e| format!("{label}: {e:#}"))
@@ -1305,11 +1294,7 @@ impl App {
         let total_n = self.games.len();
         let available_n = total_n.saturating_sub(installed_n);
 
-        ui_c::page_title(
-            ui,
-            self.tr(T::YourGames),
-            Some(self.tr(T::YourGamesSub)),
-        );
+        ui_c::page_title(ui, self.tr(T::YourGames), Some(self.tr(T::YourGamesSub)));
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 10.0;
             ui_c::summary_stat(ui, self.tr(T::TotalGames), total_n.to_string());
@@ -1439,13 +1424,13 @@ impl App {
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                             if stale > 0 {
                                 ui.label(
-                                    RichText::new(format!("{stale} need updating"))
+                                    RichText::new(fmt_n(self.tr(T::NeedUpdatingN), stale))
                                         .font(t::plex(11.5))
                                         .color(t::WARN),
                                 );
                             } else if ready > 0 {
                                 ui.label(
-                                    RichText::new(format!("{ready} ready for DLSS 5"))
+                                    RichText::new(fmt_n(self.tr(T::ReadyForDlssN), ready))
                                         .font(t::plex(11.5))
                                         .color(t::ACCENT),
                                 );
@@ -1588,23 +1573,27 @@ impl App {
             let font = t::plex_semibold(9.5);
             let pad = Vec2::new(7.0, 3.0);
             let mut chip_x = poster.right() - 8.0;
-            let paint_chip =
-                |p: &egui::Painter, text: &str, fg: Color32, bg: Color32, border: Color32, right: f32| {
-                    let galley = p.layout_no_wrap(text.to_owned(), font.clone(), fg);
-                    let chip = egui::Rect::from_min_size(
-                        egui::pos2(right - galley.size().x - pad.x * 2.0, poster.top() + 8.0),
-                        galley.size() + pad * 2.0,
-                    );
-                    p.rect_filled(chip, t::chip_rounding(), bg);
-                    p.rect_stroke(
-                        chip,
-                        t::chip_rounding(),
-                        Stroke::new(1.0, border),
-                        StrokeKind::Inside,
-                    );
-                    p.galley(chip.min + pad, galley, fg);
-                    chip.left() - 4.0
-                };
+            let paint_chip = |p: &egui::Painter,
+                              text: &str,
+                              fg: Color32,
+                              bg: Color32,
+                              border: Color32,
+                              right: f32| {
+                let galley = p.layout_no_wrap(text.to_owned(), font.clone(), fg);
+                let chip = egui::Rect::from_min_size(
+                    egui::pos2(right - galley.size().x - pad.x * 2.0, poster.top() + 8.0),
+                    galley.size() + pad * 2.0,
+                );
+                p.rect_filled(chip, t::chip_rounding(), bg);
+                p.rect_stroke(
+                    chip,
+                    t::chip_rounding(),
+                    Stroke::new(1.0, border),
+                    StrokeKind::Inside,
+                );
+                p.galley(chip.min + pad, galley, fg);
+                chip.left() - 4.0
+            };
             // Installed = Success, Not installed = Neutral, Update = Warning.
             let (status_short, status_fg, status_bg, status_bd) = if !m.stale.is_empty() {
                 (
@@ -1737,11 +1726,7 @@ impl App {
         painter.galley(egui::pos2(title_x, cap.top() + 6.0), title, t::TEXT);
         let path_full = g.dir.to_string_lossy();
         let path_short = ui_c::truncate_path(&path_full, 28);
-        let path_galley = painter.layout_no_wrap(
-            path_short,
-            t::plex(10.5),
-            t::TEXT_MUTED,
-        );
+        let path_galley = painter.layout_no_wrap(path_short, t::plex(10.5), t::TEXT_MUTED);
         painter.galley(
             egui::pos2(title_x, cap.top() + 24.0),
             path_galley,
@@ -1751,12 +1736,20 @@ impl App {
         let open_galley = painter.layout_no_wrap(
             open_label.to_owned(),
             t::plex_medium(10.5),
-            if hovered { t::PRIMARY_HOVER } else { t::TEXT_DIM },
+            if hovered {
+                t::PRIMARY_HOVER
+            } else {
+                t::TEXT_DIM
+            },
         );
         painter.galley(
             egui::pos2(title_x, cap.top() + 42.0),
             open_galley,
-            if hovered { t::PRIMARY_HOVER } else { t::TEXT_DIM },
+            if hovered {
+                t::PRIMARY_HOVER
+            } else {
+                t::TEXT_DIM
+            },
         );
         p.rect_stroke(
             rect,
@@ -1768,7 +1761,7 @@ impl App {
             let m = self.meta.get(&i);
             let stale = m
                 .filter(|m| !m.stale.is_empty())
-                .map(|m| format!("\n\nOut of date:\n  {}", m.stale.join("\n  ")))
+                .map(|m| format!("\n\n{}:\n  {}", self.tr(T::OutOfDate), m.stale.join("\n  ")))
                 .unwrap_or_default();
             let mut caps = String::new();
             if let Some(m) = m {
@@ -1795,12 +1788,8 @@ impl App {
                     caps.push_str(&format!("\nWarning: {w}"));
                 }
             }
-            resp.clone().on_hover_text(format!(
-                "{}\n{}{}{stale}{caps}",
-                g.title,
-                path_full,
-                caps,
-            ));
+            resp.clone()
+                .on_hover_text(format!("{}\n{}{}{stale}{caps}", g.title, path_full, caps,));
         }
         // Being installed right now: dim the poster, say so, and show how far
         // along it is, right where the user asked for it.
@@ -1810,9 +1799,9 @@ impl App {
             let pct = self.progress.min(100);
             let title = p.layout_no_wrap(
                 if self.running {
-                    format!("Updating… {pct}%")
+                    fmt_n(self.tr(T::UpdatingInProgress), pct as usize)
                 } else {
-                    "Finishing…".to_owned()
+                    self.tr(T::Finishing).to_owned()
                 },
                 t::plex_semibold(13.0),
                 t::TEXT,
@@ -1906,7 +1895,11 @@ impl App {
         if installed || g.store == Store::Manual {
             resp.context_menu(|ui| {
                 if installed {
-                    let label = if stale { "Update" } else { "Re-install" };
+                    let label = if stale {
+                        self.tr(T::Update)
+                    } else {
+                        self.tr(T::Reinstall)
+                    };
                     if ui
                         .add_enabled(!self.running, egui::Button::new(label))
                         .clicked()
@@ -1915,7 +1908,7 @@ impl App {
                         ui.close();
                     }
                 }
-                if g.store == Store::Manual && ui.button("Forget this game").clicked() {
+                if g.store == Store::Manual && ui.button(self.tr(T::ForgetGame)).clicked() {
                     action = CardAction::Forget;
                     ui.close();
                 }
@@ -1965,7 +1958,11 @@ impl App {
                     let btn = egui::Button::new(
                         RichText::new(c.label())
                             .font(t::plex_medium(12.5))
-                            .color(if on { Color32::WHITE } else { t::TEXT_SECONDARY }),
+                            .color(if on {
+                                Color32::WHITE
+                            } else {
+                                t::TEXT_SECONDARY
+                            }),
                     )
                     .fill(if on { t::PRIMARY } else { Color32::TRANSPARENT })
                     .stroke(Stroke::new(
@@ -1985,11 +1982,9 @@ impl App {
         let feeder_title = self.tr(T::FeederDefaults);
         ui_c::section_card(ui, feeder_title, |ui| {
             ui.label(
-                RichText::new(
-                    "Unset sliders follow the quality seed. Explicit values override on Install.",
-                )
-                .font(t::plex(11.0))
-                .color(t::TEXT_DIM),
+                RichText::new(self.tr(T::FeederDefaultsHint))
+                    .font(t::plex(11.0))
+                    .color(t::TEXT_DIM),
             );
             ui.add_space(6.0);
             let k = &mut self.settings.knobs;
@@ -2082,9 +2077,13 @@ impl App {
             .color(t::TEXT_DIM),
         );
         ui.label(
-            RichText::new(format!("{}: {}", self.tr(T::Path), Settings::path().display()))
-                .font(t::mono(11.0))
-                .color(t::TEXT_DIM),
+            RichText::new(format!(
+                "{}: {}",
+                self.tr(T::Path),
+                Settings::path().display()
+            ))
+            .font(t::mono(11.0))
+            .color(t::TEXT_DIM),
         );
     }
 
@@ -2117,7 +2116,7 @@ impl App {
                     }
                 } else {
                     ui.label(
-                        RichText::new("Select a game first.")
+                        RichText::new(self.tr(T::SelectGameFirst))
                             .font(t::plex(12.0))
                             .color(t::TEXT_DIM),
                     );
@@ -2269,7 +2268,7 @@ impl App {
                     );
                 } else {
                     ui.label(
-                        RichText::new("Select a game first.")
+                        RichText::new(self.tr(T::SelectGameFirst))
                             .font(t::plex(12.0))
                             .color(t::TEXT_DIM),
                     );
@@ -2538,9 +2537,11 @@ impl App {
                     value.clone()
                 };
                 let btn = egui::Button::new(
-                    RichText::new(btn_text)
-                        .font(t::mono(12.0))
-                        .color(if armed { t::WARN } else { t::TEXT }),
+                    RichText::new(btn_text).font(t::mono(12.0)).color(if armed {
+                        t::WARN
+                    } else {
+                        t::TEXT
+                    }),
                 )
                 .min_size(Vec2::new(120.0, 22.0));
                 if ui.add(btn).clicked() {
@@ -2643,11 +2644,9 @@ fn about_page(ui: &mut egui::Ui, lang: Language) {
 
     ui_c::section_card(ui, tr(T::Credits), |ui| {
         ui.label(
-            RichText::new(
-                "Everything it installs is downloaded from the projects that made it.",
-            )
-            .font(t::plex(12.0))
-            .color(t::TEXT_MUTED),
+            RichText::new(tr(T::CreditsBlurb))
+                .font(t::plex(12.0))
+                .color(t::TEXT_MUTED),
         );
         ui.add_space(4.0);
         for (name, url) in [
@@ -2712,11 +2711,7 @@ fn about_page(ui: &mut egui::Ui, lang: Language) {
                     .font(t::plex(12.0))
                     .color(t::TEXT_MUTED),
             );
-            ui.label(
-                RichText::new(tr(T::X64))
-                    .font(t::mono(12.0))
-                    .color(t::TEXT),
-            );
+            ui.label(RichText::new(tr(T::X64)).font(t::mono(12.0)).color(t::TEXT));
         });
         ui.horizontal(|ui| {
             ui.label(
@@ -2867,11 +2862,7 @@ impl eframe::App for App {
                                 self.settings.language = Language::Ru;
                                 let _ = self.settings.save();
                             }
-                            ui.label(
-                                RichText::new("|")
-                                    .font(t::plex(11.0))
-                                    .color(t::TEXT_DIM),
-                            );
+                            ui.label(RichText::new("|").font(t::plex(11.0)).color(t::TEXT_DIM));
                             if ui.add(lang_btn("EN", en)).clicked() && !en {
                                 self.settings.language = Language::En;
                                 let _ = self.settings.save();
@@ -2933,16 +2924,16 @@ impl eframe::App for App {
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing.x = 10.0;
                             ui.label(
-                                RichText::new(format!(
-                                    "Version {} is available (you have {}).",
-                                    av.version,
-                                    update::CURRENT
+                                RichText::new(fmt_vc(
+                                    self.tr(T::VersionAvailable),
+                                    &av.version,
+                                    update::CURRENT,
                                 ))
                                 .font(t::plex_medium(12.5))
                                 .color(t::TEXT),
                             );
                             let upd = egui::Button::new(
-                                RichText::new("Update")
+                                RichText::new(self.tr(T::Update))
                                     .font(t::plex_semibold(12.5))
                                     .color(t::BG),
                             )
@@ -2952,16 +2943,16 @@ impl eframe::App for App {
                             if ui.add(upd).clicked() {
                                 self.start_update_download(av.clone());
                             }
-                            if ui.button("Later").clicked() {
+                            if ui.button(self.tr(T::UpdateLater)).clicked() {
                                 self.update = UpdateState::Idle;
                             }
-                            if ui.button("Skip this version").clicked() {
+                            if ui.button(self.tr(T::SkipVersion)).clicked() {
                                 self.skipped_version = av.version.clone();
                                 self.update = UpdateState::Idle;
                             }
                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                 ui.hyperlink_to(
-                                    RichText::new("release notes").font(t::plex(11.5)),
+                                    RichText::new(self.tr(T::ReleaseNotes)).font(t::plex(11.5)),
                                     format!(
                                         "https://github.com/{}/releases/tag/{}",
                                         update::REPO,
@@ -2989,9 +2980,12 @@ impl eframe::App for App {
                     )
                     .show(ui, |ui| {
                         ui.label(
-                            RichText::new(format!("Updating: {pct}% {msg}"))
-                                .font(t::plex(12.0))
-                                .color(t::TEXT_MUTED),
+                            RichText::new(format!(
+                                "{} {msg}",
+                                fmt_n(self.tr(T::UpdatingPct), pct as usize)
+                            ))
+                            .font(t::plex(12.0))
+                            .color(t::TEXT_MUTED),
                         );
                     });
             }
@@ -3010,7 +3004,7 @@ impl eframe::App for App {
                     )
                     .show(ui, |ui| {
                         ui.label(
-                            RichText::new("Updated. Restarting...")
+                            RichText::new(self.tr(T::UpdatedRestarting))
                                 .font(t::plex(12.0))
                                 .color(t::ACCENT),
                         );
@@ -3032,11 +3026,11 @@ impl eframe::App for App {
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
                             ui.label(
-                                RichText::new(format!("Update failed: {e}"))
+                                RichText::new(format!("{}: {e}", self.tr(T::UpdateFailed)))
                                     .font(t::plex(12.0))
                                     .color(t::DANGER),
                             );
-                            if ui.button("Dismiss").clicked() {
+                            if ui.button(self.tr(T::Dismiss)).clicked() {
                                 self.update = UpdateState::Idle;
                             }
                         });
@@ -3046,16 +3040,12 @@ impl eframe::App for App {
 
         if !self.tip_dismissed {
             egui::Panel::top("first_run_tip")
-                .frame(
-                    Frame::new()
-                        .fill(t::PANEL)
-                        .inner_margin(Margin {
-                            left: 20,
-                            right: 20,
-                            top: 8,
-                            bottom: 4,
-                        }),
-                )
+                .frame(Frame::new().fill(t::PANEL).inner_margin(Margin {
+                    left: 20,
+                    right: 20,
+                    top: 8,
+                    bottom: 4,
+                }))
                 .show(ui, |ui| {
                     if ui_c::info_banner(ui, self.tr(T::TipTitle), self.tr(T::TipBody)) {
                         self.tip_dismissed = true;
@@ -3094,7 +3084,10 @@ impl eframe::App for App {
                             let busy = self.update_rx.is_some()
                                 || !matches!(self.update, UpdateState::Idle);
                             if ui
-                                .add_enabled(!busy, ui_c::secondary_button("Check for updates"))
+                                .add_enabled(
+                                    !busy,
+                                    ui_c::secondary_button(self.tr(T::CheckForUpdates)),
+                                )
                                 .clicked()
                             {
                                 // An explicit check also clears a skipped version:
@@ -3108,10 +3101,10 @@ impl eframe::App for App {
                                 && self.update_rx.is_none()
                             {
                                 ui.label(
-                                    RichText::new(concat!(
-                                        "You are on the newest release (v",
-                                        env!("CARGO_PKG_VERSION"),
-                                        ")."
+                                    RichText::new(format!(
+                                        "{} (v{})",
+                                        self.tr(T::OnNewestRelease),
+                                        env!("CARGO_PKG_VERSION")
                                     ))
                                     .font(t::plex(12.0))
                                     .color(t::TEXT_MUTED),
@@ -3145,6 +3138,10 @@ impl eframe::App for App {
                     ui.spacing_mut().item_spacing.x = 8.0;
                     let btn_w = 2.0 * 96.0 + 8.0;
                     let field_w = ui.available_width() - btn_w - 8.0;
+                    let path_hint = self.tr(T::GameFolderOrExe);
+                    let browse_l = self.tr(T::BrowseGameFolder);
+                    let pick_title = self.tr(T::PickGameFolder);
+                    let game_exe_hint = self.tr(T::GameExe);
                     Frame::new()
                         .fill(t::BG)
                         .stroke(Stroke::new(1.0, t::BORDER_STRONG))
@@ -3159,10 +3156,7 @@ impl eframe::App for App {
                                         .frame(Frame::NONE)
                                         .font(t::mono(12.0))
                                         .text_color(t::TEXT_SOFT)
-                                        .hint_text(
-                                            RichText::new("Game folder or the game's .exe")
-                                                .color(t::TEXT_DIM),
-                                        )
+                                        .hint_text(RichText::new(path_hint).color(t::TEXT_DIM))
                                         .desired_width(f32::INFINITY),
                                 );
                                 if r.changed() {
@@ -3172,11 +3166,10 @@ impl eframe::App for App {
                         });
                     let start_dir = self.exe().and_then(|p| p.parent().map(|d| d.to_path_buf()));
                     if ui
-                        .add_sized([96.0, 40.0], egui::Button::new("Game folder…"))
+                        .add_sized([96.0, 40.0], egui::Button::new(browse_l))
                         .clicked()
                     {
-                        let mut dlg =
-                            rfd::FileDialog::new().set_title("Pick the game's install folder");
+                        let mut dlg = rfd::FileDialog::new().set_title(pick_title);
                         if let Some(d) = &start_dir {
                             dlg = dlg.set_directory(d);
                         }
@@ -3185,7 +3178,11 @@ impl eframe::App for App {
                             self.refresh();
                         }
                     }
-                    if ui.add_sized([96.0, 40.0], egui::Button::new("Exe…")).clicked() {
+                    if ui
+                        .add_sized([96.0, 40.0], egui::Button::new("Exe…"))
+                        .on_hover_text(game_exe_hint)
+                        .clicked()
+                    {
                         let mut dlg =
                             rfd::FileDialog::new().add_filter("Executables", &["exe", "bin"]);
                         if let Some(d) = &start_dir {
@@ -3874,9 +3871,7 @@ impl eframe::App for App {
                             ok_status.is_some() && !self.running,
                             ui_c::secondary_button(diagnose_l),
                         )
-                        .on_hover_text(
-                            "Reads this game's ReShade and feed logs and says why neural rendering is or is not running. Play the game first.",
-                        )
+                        .on_hover_text(self.tr(T::DiagnoseHint))
                         .clicked()
                     {
                         self.run_diagnose();
@@ -3888,12 +3883,9 @@ impl eframe::App for App {
                         if ui
                             .add_enabled(
                                 !self.running,
-                                ui_c::secondary_button("Copy Vulkan Feeder kit"),
+                                ui_c::secondary_button(self.tr(T::CopyVulkanKit)),
                             )
-                            .on_hover_text(
-                                "Copies dlss5-feed.addon64 + DLSS5_Feed.fx + VULKAN-SETUP.txt. \
-                                 Does not register a Vulkan layer — finish with ReShade Setup.",
-                            )
+                            .on_hover_text(self.tr(T::CopyVulkanKitHint))
                             .clicked()
                         {
                             if let Some(exe) = self.exe() {
@@ -4134,11 +4126,7 @@ impl eframe::App for App {
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                 .show(ui.ctx(), |ui| {
                     ui.set_max_width(420.0);
-                    ui.label(
-                        RichText::new(confirm_q)
-                            .font(t::plex(13.0))
-                            .color(t::TEXT),
-                    );
+                    ui.label(RichText::new(confirm_q).font(t::plex(13.0)).color(t::TEXT));
                     ui.add_space(6.0);
                     ui.label(
                         RichText::new(confirm_all)
@@ -4162,7 +4150,10 @@ impl eframe::App for App {
                             self.start(Some(false));
                         }
                         if ui
-                            .add(ui_c::secondary_button(confirm_all).min_size(Vec2::new(160.0, 36.0)))
+                            .add(
+                                ui_c::secondary_button(confirm_all)
+                                    .min_size(Vec2::new(160.0, 36.0)),
+                            )
                             .clicked()
                         {
                             self.confirm_remove = false;
@@ -4185,7 +4176,7 @@ impl eframe::App for App {
                 .show(ui.ctx(), |ui| {
                     ui.set_max_width(480.0);
                     ui.label(RichText::new(&err).color(t::DANGER));
-                    if ui.button("OK").clicked() {
+                    if ui.button(self.tr(T::Ok)).clicked() {
                         self.last_error = None;
                     }
                 });

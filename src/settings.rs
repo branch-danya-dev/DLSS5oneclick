@@ -6,8 +6,8 @@
 //! DLSS5-Feeder) — use [`Settings::feeder_stock`] / the Settings UI
 //! "Reset to Feeder defaults" button to restore the form to Feeder-like values.
 
-use crate::quality_preset::{QualityChoice, QualityOverrides};
 use crate::i18n::Language;
+use crate::quality_preset::{QualityChoice, QualityOverrides};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
