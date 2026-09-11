@@ -66,43 +66,39 @@ new_block = r'''        // ── page heading ───────────
             .min_size(Vec2::new(96.0, 36.0))
         };
 
-        let mut toolbar_actions = |ui: &mut egui::Ui| {
-            ui.spacing_mut().item_spacing.x = 8.0;
-            if ui
-                .add_enabled(!self.scanning && !self.running, btn("Rescan", true))
-                .clicked()
-            {
-                self.start_scan(ui.ctx());
-            }
-            if ui.add(btn("Add a folder", false)).clicked() {
-                if let Some(p) = rfd::FileDialog::new()
-                    .set_title("Pick the game's install folder")
-                    .pick_folder()
-                {
-                    self.add_game(p, ui.ctx());
-                }
-            }
-            if ui.add(btn("Add a game", false)).clicked() {
-                if let Some(p) = rfd::FileDialog::new()
-                    .add_filter("Executables", &["exe", "bin"])
-                    .pick_file()
-                {
-                    self.add_game(p, ui.ctx());
-                }
-            }
-        };
-
         if toolbar_w >= 760.0 {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 8.0;
-                let actions_w = 96.0 + 112.0 + 104.0 + 24.0;
+                let actions_w = 104.0 + 112.0 + 96.0 + 24.0;
                 let search_w = (ui.available_width() - actions_w).max(180.0);
                 let search = egui::TextEdit::singleline(&mut self.search)
                     .font(t::plex(12.0))
                     .hint_text(RichText::new("Search games…").color(t::TEXT_DIM))
                     .desired_width(search_w);
                 ui.add_sized([search_w, 36.0], search);
-                toolbar_actions(ui);
+
+                if ui.add(btn("Add a game", false)).clicked() {
+                    if let Some(p) = rfd::FileDialog::new()
+                        .add_filter("Executables", &["exe", "bin"])
+                        .pick_file()
+                    {
+                        self.add_game(p, ui.ctx());
+                    }
+                }
+                if ui.add(btn("Add a folder", false)).clicked() {
+                    if let Some(p) = rfd::FileDialog::new()
+                        .set_title("Pick the game's install folder")
+                        .pick_folder()
+                    {
+                        self.add_game(p, ui.ctx());
+                    }
+                }
+                if ui
+                    .add_enabled(!self.scanning && !self.running, btn("Rescan", true))
+                    .clicked()
+                {
+                    self.start_scan(ui.ctx());
+                }
             });
         } else {
             let search = egui::TextEdit::singleline(&mut self.search)
@@ -111,7 +107,31 @@ new_block = r'''        // ── page heading ───────────
                 .desired_width(ui.available_width());
             ui.add_sized([ui.available_width(), 36.0], search);
             ui.add_space(8.0);
-            ui.horizontal(|ui| toolbar_actions(ui));
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 8.0;
+                if ui.add(btn("Add a game", false)).clicked() {
+                    if let Some(p) = rfd::FileDialog::new()
+                        .add_filter("Executables", &["exe", "bin"])
+                        .pick_file()
+                    {
+                        self.add_game(p, ui.ctx());
+                    }
+                }
+                if ui.add(btn("Add a folder", false)).clicked() {
+                    if let Some(p) = rfd::FileDialog::new()
+                        .set_title("Pick the game's install folder")
+                        .pick_folder()
+                    {
+                        self.add_game(p, ui.ctx());
+                    }
+                }
+                if ui
+                    .add_enabled(!self.scanning && !self.running, btn("Rescan", true))
+                    .clicked()
+                {
+                    self.start_scan(ui.ctx());
+                }
+            });
         }
         ui.add_space(18.0);
 
