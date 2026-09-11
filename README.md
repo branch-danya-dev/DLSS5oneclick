@@ -1,167 +1,236 @@
 # DLSS5oneclick
 
+**Русский** | [English](README_EN.md)
+
 <p>
-  <a href="https://github.com/branch-danya-dev/DLSS5oneclick/releases/latest"><img src="https://img.shields.io/github/v/release/branch-danya-dev/DLSS5oneclick?style=flat-square&color=2878D0&label=Download" alt="Download this fork"></a>
-  <img src="https://img.shields.io/github/downloads/branch-danya-dev/DLSS5oneclick/total?style=flat-square&color=16A34A&label=Fork%20downloads" alt="Fork downloads">
-  <a href="https://github.com/faisalkindi/DLSS5oneclick"><img src="https://img.shields.io/badge/Upstream-faisalkindi%2FDLSS5oneclick-6B7280?style=flat-square&logo=github" alt="Upstream repository"></a>
-  <a href="https://ko-fi.com/kindiboy"><img src="https://img.shields.io/badge/Support%20upstream-Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white" alt="Support upstream author"></a>
+  <a href="https://github.com/branch-danya-dev/DLSS5oneclick/releases/latest"><img src="https://img.shields.io/github/v/release/branch-danya-dev/DLSS5oneclick?style=flat-square&color=2878D0&label=Download" alt="Скачать этот форк"></a>
+  <img src="https://img.shields.io/github/downloads/branch-danya-dev/DLSS5oneclick/total?style=flat-square&color=16A34A&label=Fork%20downloads" alt="Загрузки форка">
+  <a href="https://github.com/faisalkindi/DLSS5oneclick"><img src="https://img.shields.io/badge/Upstream-faisalkindi%2FDLSS5oneclick-6B7280?style=flat-square&logo=github" alt="Оригинальный репозиторий"></a>
+  <a href="https://ko-fi.com/kindiboy"><img src="https://img.shields.io/badge/Support%20upstream-Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white" alt="Поддержать автора оригинала"></a>
 </p>
 
 > [!IMPORTANT]
-> **This repository is a community fork of [faisalkindi/DLSS5oneclick](https://github.com/faisalkindi/DLSS5oneclick).**  
-> The original application, architecture and core functionality were created by **Faisal Bahashwan (`faisalkindi`)**. This fork is maintained by `branch-danya-dev` and adds quality-of-life changes on top of the upstream project. It is not an official upstream release.
+> **Этот репозиторий — community fork проекта [faisalkindi/DLSS5oneclick](https://github.com/faisalkindi/DLSS5oneclick).**  
+> Оригинальное приложение, его архитектура и основная функциональность созданы **Faisal Bahashwan (`faisalkindi`)**. Этот форк поддерживается `branch-danya-dev` и добавляет дополнительные QoL-возможности поверх upstream-проекта. Это не официальный релиз оригинального DLSS5oneclick.
 
-## Fork-specific changes
+## Изменения этого форка
 
-This fork currently adds two changes while keeping the upstream installation workflow intact:
+### v0.13.16 — хоткеи для игровых коллекций
 
-### Configurable hotkeys
+[Релиз v0.13.16](https://github.com/branch-danya-dev/DLSS5oneclick/releases/tag/v0.13.16)
 
-The **Setup** page includes a **Hotkeys** section for editing the shortcuts used by the installed components without manually opening their configuration files.
+- **Write hotkeys** теперь записывает выбранные сочетания клавиш во все отмеченные игры коллекции, а не только в текущий выбранный exe.
+- После каждой успешной установки **Install** те же хоткеи автоматически применяются к установленной под-игре.
+- Это исправляет сценарии с коллекциями вроде Mass Effect Legendary Edition, где ME1 / ME2 / ME3 находятся внутри одной записи лаунчера или одной библиотечной папки.
 
-| Action | Config entry | Default / notes |
+### v0.13.15 — поддержка коллекций из нескольких игр
+
+Некоторые релизы Steam/Epic представляют собой сборники, в которых несколько отдельных игр находятся в одной библиотечной папке. Раньше DLSS5oneclick выбирал один exe — обычно самый большой — поэтому, например, Mass Effect Legendary Edition мог настраиваться только для ME3.
+
+Начиная с **v0.13.15**:
+
+- Распознаются коллекции вроде Mass Effect Legendary Edition с отдельными под-играми ME1 / ME2 / ME3.
+- На странице **Setup** появляются чекбоксы найденных под-игр; по умолчанию выбраны все.
+- **Install** и **Remove** выполняются для каждой отмеченной игры.
+- **Update** с карточки на странице Games устанавливает DLSS5 во все найденные под-игры, а не только рядом с одним exe.
+
+### Настраиваемые хоткеи
+
+На странице **Setup** появилась секция **Hotkeys**, позволяющая менять основные сочетания клавиш прямо из приложения, без ручного редактирования конфигурационных файлов.
+
+| Действие | Параметр конфигурации | По умолчанию / примечание |
 |---|---|---|
-| **ReShade overlay** | `[INPUT] KeyOverlay` | Supports Ctrl / Shift / Alt modifiers |
+| **ReShade overlay** | `[INPUT] KeyOverlay` | Поддерживает Ctrl / Shift / Alt |
 | **Toggle NR** | `[RenoDX.DLSS5] NRToggleKey` | F6 |
 | **NR screenshot** | `[RenoDX.DLSS5] NRScreenshotKey` | F5 |
-| **OptiScaler menu** | `[Menu] ShortcutKey` | OptiScaler shortcut |
+| **OptiScaler menu** | `[Menu] ShortcutKey` | Хоткей меню OptiScaler |
 
-Click a hotkey button, press the key you want, then choose **Write hotkeys**. **Reset** restores the default value and **Clear** removes the binding.
+Нажмите кнопку нужного хоткея, затем нужную клавишу и выберите **Write hotkeys**. **Reset** возвращает значение по умолчанию, а **Clear** удаляет привязку.
 
-For **32-bit games**, ReShade runs through the 64-bit helper and its configuration may live at `host64\ReShade.ini`; the Setup page displays a warning when this applies.
+Для **32-bit игр** ReShade работает через 64-битный helper, поэтому конфигурация может находиться в `host64\ReShade.ini`. На странице Setup показывается предупреждение, если используется такой вариант.
 
-### Self-update disabled
+### Автообновление отключено
 
-Automatic self-update is deliberately **disabled in this fork** so an upstream release cannot replace the modified executable with an official `faisalkindi/DLSS5oneclick` build.
+Автоматическое self-update намеренно **отключено в этом форке**, чтобы официальный upstream-релиз не мог заменить модифицированный exe сборкой `faisalkindi/DLSS5oneclick`.
 
-- Startup no longer checks upstream releases.
-- The **Check for updates** action is removed; About notes that self-update is disabled.
-- `--update` only reports that updating is disabled.
-- The implementation is controlled by `update::ENABLED = false` in `src/update.rs`.
+- При запуске больше не выполняется проверка релизов upstream.
+- Действие **Check for updates** удалено; в About указано, что self-update выключен.
+- `--update` только сообщает, что обновление отключено.
+- Поведение контролируется флагом `update::ENABLED = false` в `src/update.rs`.
 
-If self-update is enabled again in the future, the configured release source is this fork (`branch-danya-dev/DLSS5oneclick`), not upstream.
+Если self-update будет возвращён в будущем, источником релизов уже настроен этот форк (`branch-danya-dev/DLSS5oneclick`), а не upstream.
 
-**Download this fork:** [latest release](https://github.com/branch-danya-dev/DLSS5oneclick/releases/latest) → `dlss5oneclick.exe`.
+**Скачать этот форк:** [последний релиз](https://github.com/branch-danya-dev/DLSS5oneclick/releases/latest) → `dlss5oneclick.exe`.
 
-For the original project and its official releases, use [faisalkindi/DLSS5oneclick](https://github.com/faisalkindi/DLSS5oneclick).
+Оригинальный проект и его официальные релизы находятся в [faisalkindi/DLSS5oneclick](https://github.com/faisalkindi/DLSS5oneclick).
 
 ---
 
-One button that sets up the **leaked DLSS 5 neural-rendering build** in any DirectX 11/12 game, with or without DLSS of its own. Single native Windows exe, no runtime. Everything it installs is downloaded from the projects that made it; the only third-party content inside the exe is three SIL-OFL fonts.
+DLSS5oneclick позволяет одной кнопкой установить **утёкшую сборку DLSS 5 Neural Rendering** в игры DirectX 11/12 — как с собственной поддержкой DLSS, так и без неё. Это один нативный Windows exe без внешнего runtime. Устанавливаемые компоненты загружаются из проектов, которым они принадлежат.
 
-## Two paths, picked automatically
+## Два сценария установки
 
-| The game | What gets installed |
+| Игра | Что устанавливается |
 |---|---|
-| **Ships its own DLSS** (an `nvngx_dlss.dll` this tool did not place, or Streamline `sl.*.dll`, `nvngx_dlssg/dlssd.dll`, anywhere up to four folders deep, or under an Unreal project's `Plugins` tree) | ReShade add-on build + the DLSS 5 add-on (`renodx-dlss5.addon64`, `nvngx_dlssnr.dll`). The add-on hooks the game's own NGX calls directly. **DX11 games** also get [dlss5-bridge](https://github.com/NIGos/dlss5-bridge), which replays the D3D11 DLSS calls on a private D3D12 device so the add-on can see them. No Feeder, no LumeniteFX; a Feeder left over from an earlier run is removed. |
-| **Has no DLSS** | The full Feeder path below: ReShade + shader headers + DLSS5-Feeder + LumeniteFX + the DLSS 5 add-on + config. |
+| **Имеет собственный DLSS** (`nvngx_dlss.dll`, Streamline `sl.*.dll`, `nvngx_dlssg/dlssd.dll` и т. п.) | ReShade с поддержкой add-on + DLSS 5 add-on (`renodx-dlss5.addon64`, `nvngx_dlssnr.dll`). Для **DX11** также используется [dlss5-bridge](https://github.com/NIGos/dlss5-bridge). Feeder и LumeniteFX в этом сценарии не требуются. |
+| **Не имеет DLSS** | Полный Feeder-сценарий: ReShade + shader headers + DLSS5-Feeder + LumeniteFX + DLSS 5 add-on + конфигурация. |
 
-**Engine choice for games with native DLSS** (two cards at the top of the window, the second one greyed out with a reason when the game has no DLSS): the default engine is ReShade + the RenoDX add-on. A second engine — [Dagherbou's OptiScaler_DLSSNR fork](https://github.com/Dagherbou/OptiScaler_DLSSNR) (OptiScaler with a built-in Neural Rendering pass, colour composition from RenoDX under MIT) — can be picked in the GUI or with `--engine=opti`: the tool extracts the fork's release into the game as `dxgi.dll`, adds `nvngx_dlssnr.dll`, and records a manifest so Remove takes it out cleanly. In game, Insert opens the OptiScaler overlay; Neural Rendering is off by default there. The two engines cannot share a game (both load as dxgi.dll). Note the fork targets the unpatched model: on the driver's own DLL that means RTX 50; with the `310.8.SF` model this tool installs, older RTX generations may work but are untested there.
+### Выбор движка для игр с нативным DLSS
 
-**RenoDX HDR mod (optional, since 0.8.0; engine-independent since 0.8.1).** The [RenoDX](https://github.com/clshortfuse/renodx) project publishes game-specific HDR / tone-mapping mods as ReShade add-ons (`renodx-<game>.addon64`). When the tool recognises the game (Steam app id from the library's `appmanifest_*.acf`, else the folder / exe name, matched against RenoDX's `games-index.json` and its wiki mod list), a **RenoDX HDR mod** checkbox appears with the mod's status (working / in progress) and the wiki's note for that game; `--renodx` does the same on the command line. It loads beside the DLSS 5 add-on: ReShade only refuses two add-ons with the same name, and the game mods register as "RenoDX" while the DLSS 5 add-on registers as "DLSS 5 Neural Rendering"; their settings live in different `ReShade.ini` sections (`[renodx-preset1]` vs `[RenoDX.DLSS5]`). Verified in Clair Obscur: Expedition 33 and Dragon's Dogma 2 (both add-ons registered in `ReShade.log`). Exactly **one** RenoDX game mod per game — a second one is refused by ReShade and both would write the same keys — so the tool refuses when another `renodx-*.addon64` is already there, and Remove only deletes the one it recorded. The link the wiki gives (often a maintainer's fork snapshot) wins over the main-repo snapshot build; games the wiki lists as Nexus/Discord-only get the snapshot build with a note. Turn Windows AutoHDR / RTX HDR off with these mods (double tone mapping). The generic Unreal/Unity fallbacks RHI offers are deliberately not installed. The checkbox is independent of the engine: on the **OptiScaler engine** the mod still needs ReShade, so the tool adds the ReShade DLL as `ReShade64.dll` and sets `[Plugins] LoadReshade=true` in `OptiScaler.ini` — the method OptiScaler's own ini documents for running ReShade add-ons beside it. That combination follows the documentation but has not been run in a game by the author; if it crashes, untick the mod or switch engines.
+По умолчанию используется ReShade + RenoDX add-on. Второй вариант — [Dagherbou's OptiScaler_DLSSNR fork](https://github.com/Dagherbou/OptiScaler_DLSSNR), который можно выбрать в GUI или параметром `--engine=opti`.
 
-**RE Engine games** (Resident Evil 2/3/4/7/8/Requiem, Devil May Cry 5, Monster Hunter Rise/Wilds, Street Fighter 6, Dragon's Dogma 2, Pragmata — anything with `re_chunk_000.pak` next to the exe) crash under ReShade unless praydog's [REFramework](https://github.com/praydog/REFramework) is loaded first. Since 0.8.0 the tool installs its monolithic nightly `dinput8.dll` as the first step in those games (only the DLL, as its release notes insist) and Remove takes it out again; a `dinput8.dll` the tool did not place is left alone.
+Инструмент распаковывает OptiScaler в папку игры как `dxgi.dll`, добавляет `nvngx_dlssnr.dll` и отслеживает установленные файлы, чтобы **Remove** мог удалить их корректно. В игре меню OptiScaler по умолчанию открывается клавишей Insert. Одновременно использовать оба движка нельзя, поскольку оба загружаются через `dxgi.dll`.
 
-**Wrong path?** The DLSS detection is a folder scan, so a stray `nvngx_dlss.dll` (left by another tool, or by this one before it started marking its own copy) makes a game without DLSS look like a native-DLSS game. The dropdown next to the game line (**Auto / Force no-DLSS (Feeder) / Force native DLSS**), `--mode=feeder|native`, or `DLSS5ONECLICK_MODE` overrides it; the auto line still shows what was detected.
+### RenoDX HDR mod
 
-**Hybrid machines (laptop iGPU + dGPU, or an AMD/Intel display adapter alongside the NVIDIA card).** Windows decides which GPU a process starts on, and a process started on the integrated GPU has no NGX at all — every `NVSDK_NGX_D3D12_Init` answers `0xBAD00001` (FeatureNotSupported) no matter how correct the install is. Install now writes the same preference the Settings app writes (`GpuPreference=2;` under `HKCU\Software\Microsoft\DirectX\UserGpuPreferences`) for the game exe, and for `host64\dlss5-feed-host64.exe` on a 32-bit game. Remove takes it away again, but only when it is still exactly what was written. `--check` prints the machine's adapters and the current preference.
+Если игра распознана как поддерживаемая RenoDX, появляется чекбокс **RenoDX HDR mod**. Мод может работать рядом с DLSS 5 add-on. При использовании OptiScaler ReShade устанавливается как `ReShade64.dll`, а его загрузка включается через `[Plugins] LoadReshade=true` в `OptiScaler.ini`.
 
-DX11 vs DX12 is read from the exe's import table, then from the engine DLLs next to it (`UnityPlayer.dll`, ...), and a `D3D12\D3D12Core.dll` (DirectX Agility SDK redist) next to the exe counts as DX12 even when only `d3d11.dll` is imported (RE Engine). When nothing says, DX12 is assumed and the status line says so. `dlss5oneclick.exe "<game folder>" --check` prints the detected mode, API and plan without installing anything.
+### Игры на RE Engine
 
-### The no-DLSS path
+Для игр на RE Engine может потребоваться [REFramework](https://github.com/praydog/REFramework), загружаемый до ReShade. Для распознанных RE Engine игр DLSS5oneclick устанавливает необходимый `dinput8.dll` и при удалении трогает только тот файл, который установил сам.
 
-**Every component is taken from its project's latest release.** For DLSS5-Feeder that can be a tag named `-beta`: upstream publishes builds it means people to run with `prerelease=false` (v0.13.1-beta.1, v0.12.1-beta.2) while flagging the ones it does not, and those carry fixes the last plain-numbered release lacks. Install names the tag it took, with `(beta)` after it, so you always know what you are running.
+### Неверно определился сценарий?
 
-It does, in order, exactly what the [DLSS5-Feeder README](https://github.com/jlrouzies-fr/DLSS5-Feeder#install-for-a-64-bit-game) tells you to do by hand:
+Определение DLSS основано на сканировании папок. Оставшийся от другого инструмента `nvngx_dlss.dll` может заставить игру без DLSS выглядеть как игру с нативным DLSS.
 
-| Step | What | From |
+Переопределить выбор можно через:
+
+- **Auto / Force no-DLSS (Feeder) / Force native DLSS** в GUI;
+- `--mode=feeder|native`;
+- переменную `DLSS5ONECLICK_MODE`.
+
+### Ноутбуки и системы с несколькими GPU
+
+На системах с iGPU и NVIDIA dGPU Windows может запустить игру на неправильном адаптере. DLSS5oneclick записывает то же GPU preference, которое использует Windows Settings (`GpuPreference=2;`), для exe игры и, для 32-bit игр, 64-битного helper-процесса. **Remove** откатывает только значение, созданное самим инструментом.
+
+DX11/DX12 определяется по executable/imports и типовым структурам движков. Если API определить невозможно, предполагается DX12 и это отображается в статусе. Команда
+
+```text
+dlss5oneclick.exe "<папка игры>" --check
+```
+
+показывает определённый режим, API и план установки без изменения файлов игры.
+
+## Сценарий для игр без DLSS
+
+Компоненты берутся из актуальных релизов или исходников соответствующих проектов. Для игр без нативного DLSS инструмент следует схеме установки DLSS5-Feeder:
+
+| Шаг | Что | Источник |
 |---|---|---|
-| 1 | ReShade **with add-on support**, dropped as `dxgi.dll` | `ReShade_Setup_<ver>_Addon.exe` on [reshade.me](https://reshade.me) (DLL pulled straight out of the installer, nothing is run) |
-| 2 | `ReShade.fxh`, `ReShadeUI.fxh`, `DrawText.fxh` into `reshade-shaders\Shaders` (the setup exe has only the DLLs; every shader below includes `ReShade.fxh`) | [crosire/reshade-shaders](https://github.com/crosire/reshade-shaders/tree/slim/Shaders) (`slim` branch) |
+| 1 | ReShade **с поддержкой add-on** как `dxgi.dll` | [reshade.me](https://reshade.me) |
+| 2 | Заголовки шейдеров ReShade | [crosire/reshade-shaders](https://github.com/crosire/reshade-shaders/tree/slim/Shaders) |
 | 3 | `dlss5-feed.addon64` + `DLSS5_Feed.fx` | [jlrouzies-fr/DLSS5-Feeder](https://github.com/jlrouzies-fr/DLSS5-Feeder/releases/latest) |
-| 4 | Motion-vector provider: `lumenite_*.fx`, `include\*.fxh`, `lumenite_bluenoise256.png` | [umar-afzaal/LumeniteFX](https://github.com/umar-afzaal/LumeniteFX) (`mainline` branch) |
-| 5 | `renodx-dlss5.addon64` (the leaked DLSS 5 add-on, closed-source and community-distributed), `nvngx_dlssnr.dll` (its neural-rendering model), `nvngx_dlss.dll` (DLSS runtime; the Feeder's NGX session fails without one next to the game, so it is always placed and marked with a `nvngx_dlss.dll.dlss5oneclick` sidecar) | [RankFTW/rhi-repo](https://github.com/RankFTW/rhi-repo/releases) releases (`renodx-dlss5-*`, `dlssnr-*`, `dlss-*`) |
-| 6 | `ReShade.ini` gets `PreprocessorDefinitions=DLSS5_MV_PROVIDER=3`; `ReShadePreset.ini` enables `Lumenite_Kernel` **above** `DLSS5_Feed` | written by this tool, existing keys preserved |
+| 4 | Motion-vector provider | [umar-afzaal/LumeniteFX](https://github.com/umar-afzaal/LumeniteFX) |
+| 5 | DLSS 5 add-on и NVIDIA runtimes | [RankFTW/rhi-repo](https://github.com/RankFTW/rhi-repo/releases) |
+| 6 | Настройка `ReShade.ini` / preset | выполняется DLSS5oneclick |
 
-Every file is downloaded from its upstream at install time; a re-run only fetches what is missing.
+При повторном запуске скачиваются только отсутствующие компоненты.
 
-## Use
+## Использование
 
-1. Run `dlss5oneclick.exe` (single native binary, no runtime needed).
-2. The **Games** page lists every installed game it can find — Steam (all library folders), Epic Games, GOG and Xbox / Game Pass — newest install first, with the store's own artwork (Steam's cached library art or its CDN, Xbox's tile logo, the exe icon otherwise) and, once inspected, a DirectX 11/12 chip plus "DLSS / add-on" status per card. Click a poster to open its **Setup** page. **Add a folder** / **Add a game** still take any folder or exe by hand, and a game added that way is remembered: it comes back in an **Added by you** section at the top of the list on every later start (right-click its card to forget it). **Rescan** re-reads the stores. `--list-games` prints the same list headless.
-3. On the Setup page, pick the game's **folder** (or its `.exe`) - the game exe is detected automatically (the folder and up to four levels below it are searched, so `bin\x64_dx12\` and Unreal `Binaries\Win64\` layouts work; Unity crash handlers, Unreal helpers and redist installers are skipped; a `*-Shipping.exe` is preferred). If several candidates remain in the **same** game, a dropdown lets you choose. **Collections** that ship several real games in one Steam/Epic folder (Mass Effect Legendary Edition → ME1/ME2/ME3, and similar) show checkboxes — Install runs for every ticked title. The list shows what is already present.
-4. **Install DLSS 5**.
-5. In game: **Home** opens ReShade → **Add-ons** tab → **DLSS 5 Neural Rendering** panel → enable it. Keep the game's MSAA/SSAA off. On games with their own DLSS the Home tab says "No effect files found" — expected, no shaders are needed there; the panel lives on the Add-ons tab.
+1. Запустите `dlss5oneclick.exe`.
+2. На странице **Games** отображаются найденные игры Steam, Epic Games, GOG и Xbox / Game Pass. Через **Add a folder** / **Add a game** можно добавить папку или exe вручную. `--list-games` выводит тот же список в CLI.
+3. Откройте страницу **Setup** нужной игры. Инструмент найдёт игровой exe, включая распространённые вложенные структуры каталогов.
+4. Если запись является **коллекцией** вроде Mass Effect Legendary Edition, каждая найденная под-игра отображается отдельным чекбоксом. По умолчанию выбраны все; снимите галочку с тех игр, которые не нужно изменять.
+5. При необходимости настройте дополнительные компоненты и **Hotkeys**.
+6. Нажмите **Install DLSS 5**. Для коллекций установка выполняется для каждой отмеченной под-игры, а выбранные хоткеи применяются после каждой успешной установки.
+7. В игре откройте ReShade (**Home**) → **Add-ons** → **DLSS 5 Neural Rendering** и включите Neural Rendering. MSAA/SSAA игры рекомендуется отключить.
 
-**F6** toggles neural rendering on/off, **F5** saves the add-on's screenshot (both are the add-on's own hotkeys — remappable on the Setup page under **Hotkeys**). On the Feeder path, `dlss5-feed.log` next to the game exe should show `feature ready … DLAA` and `DLSS5_MV_PROVIDER=3 (LumeniteFX Kernel) -> Lumenite_Kernel (enabled)`.
+По умолчанию **F6** включает/выключает Neural Rendering, а **F5** сохраняет screenshot add-on. Оба хоткея можно переназначить на странице Setup → **Hotkeys**.
 
-CLI: `dlss5oneclick.exe "C:\Games\Foo"` (folder or exe) / `--renodx` (also install the game's RenoDX HDR mod) / `--check` (detect only, also names the RenoDX mod it would install) / `--diagnose` (read the game's ReShade/feed logs and say why neural rendering is or is not running) / `--remove` (headless, prints progress).
+CLI:
 
-## Updates
+```text
+dlss5oneclick.exe "C:\Games\Foo"
+dlss5oneclick.exe "C:\Games\Foo" --renodx
+dlss5oneclick.exe "C:\Games\Foo" --check
+dlss5oneclick.exe "C:\Games\Foo" --diagnose
+dlss5oneclick.exe "C:\Games\Foo" --remove
+```
 
-Self-update is **disabled in this fork**. It does not check or install releases automatically. `dlss5oneclick.exe --update` reports that updating is disabled and exits.
+## Обновления
 
-Manual releases of this fork are published at [branch-danya-dev/DLSS5oneclick Releases](https://github.com/branch-danya-dev/DLSS5oneclick/releases). The original project's official releases remain available from [faisalkindi/DLSS5oneclick](https://github.com/faisalkindi/DLSS5oneclick/releases).
+Self-update **отключён в этом форке**. Приложение не проверяет и не устанавливает новые версии автоматически. `dlss5oneclick.exe --update` сообщает, что автоматическое обновление отключено, и завершает работу.
 
-## Downloads and GitHub
+Релизы форка публикуются вручную в [branch-danya-dev/DLSS5oneclick Releases](https://github.com/branch-danya-dev/DLSS5oneclick/releases). Официальные релизы оригинального проекта находятся в [faisalkindi/DLSS5oneclick](https://github.com/faisalkindi/DLSS5oneclick/releases).
 
-Every component comes from GitHub releases. Since 0.5.1 the tool reads the public release **pages** (no API), so it is not subject to GitHub's 60-requests-per-hour API cap that caused `HTTP 403 Forbidden` for people installing into many games. If you set a `GITHUB_TOKEN` environment variable it is used for the API path first. Where github.com itself is unreachable (some countries block it), a proxy or VPN is the only way — the files exist nowhere else this tool trusts.
+## Загрузка компонентов и GitHub
 
-## GPU support
+Компоненты скачиваются из upstream-проектов. Если GitHub недоступен из вашей сети или региона, для загрузки может потребоваться VPN или прокси.
 
-The tool reads the installed display adapters from the registry and refuses up front on anything that cannot run the model: non-NVIDIA cards (NGX does not exist there) and NVIDIA cards without tensor cores (GTX/GT/MX). Among RTX cards, expect very different costs — the DLSS 5 model is FP8 with RTX-50-only kernels; the `310.8.SF` build the tool installs adds patched binaries for RTX 40 and an FP16 path for RTX 20/30. The status line shows the tier: RTX 50 full speed · RTX 40 moderate cost · RTX 20/30 heavy cost. Virtual/remote adapters (Hyper-V GPU-P, RDP, VMs) are treated as unknown and allowed. If your card is misdetected, set `DLSS5ONECLICK_SKIP_GPU_CHECK=1` to bypass the refusal.
+## Поддержка GPU
 
-## Verifying a download
+Инструмент проверяет установленные графические адаптеры и заранее блокирует заведомо неподдерживаемые конфигурации — например, не-NVIDIA GPU и NVIDIA без tensor cores. Разные поколения RTX имеют разную стоимость Neural Rendering; интерфейс показывает определённый уровень поддержки.
 
-Each release's notes carry the SHA-256 of the attached `dlss5oneclick.exe`. Check yours with `certutil -hashfile dlss5oneclick.exe SHA256` (or PowerShell `Get-FileHash`). For this fork, download binaries only from this repository's [Releases](https://github.com/branch-danya-dev/DLSS5oneclick/releases). For official upstream binaries, use the original project's [Releases](https://github.com/faisalkindi/DLSS5oneclick/releases).
+Виртуальные и удалённые адаптеры считаются неизвестными и допускаются. Если GPU определён неправильно, проверку можно обойти переменной:
+
+```text
+DLSS5ONECLICK_SKIP_GPU_CHECK=1
+```
+
+## Проверка скачанного файла
+
+В описании каждого релиза этого форка публикуется SHA-256 файла `dlss5oneclick.exe`.
+
+Проверка через Windows:
+
+```text
+certutil -hashfile dlss5oneclick.exe SHA256
+```
+
+или через PowerShell:
+
+```text
+Get-FileHash .\dlss5oneclick.exe
+```
+
+Бинарные сборки этого форка следует скачивать только из [Releases этого репозитория](https://github.com/branch-danya-dev/DLSS5oneclick/releases). Официальные upstream-сборки находятся в [Releases оригинального проекта](https://github.com/faisalkindi/DLSS5oneclick/releases).
 
 ## Windows Defender / SmartScreen
 
-The exe is not code-signed (no publisher certificate), it is new, and it downloads DLLs into game folders — three things Windows heuristics dislike. Expect a SmartScreen "unknown publisher" prompt; if Defender quarantines the exe or, worse, the add-on files it placed in a game, restore them from Protection history, add the game folder as an exclusion, and re-run Install (it re-fetches only what is missing). Every fork release is built from the public source in this repository.
+Exe не подписан сертификатом издателя и устанавливает DLL-файлы в папки игр, поэтому Windows может показывать предупреждение Unknown publisher или помещать отдельные файлы в карантин. Все релизы этого форка собираются из публичного исходного кода этого репозитория.
 
-## Known issues
+## Известные ограничения
 
-- **Feeder path + exclusive fullscreen.** Every focus change (alt-tab) makes the game recreate its swapchain; DLSS5-Feeder rebuilds its DLSS feature and can crash inside `CreateFeature` on that rebuild ([Feeder issue #16](https://github.com/jlrouzies-fr/DLSS5-Feeder/issues/16), upstream). The game keeps rendering, DLSS 5 stops. Use borderless/windowed; raising `create_delay` in `dlss5-feed.cfg` helps. Seen on Fell & Sell; the same game ran 16,000+ frames without a crash in borderless.
-- **Frame cost.** Neural rendering at native 4K adds several milliseconds. With v-sync on at 60 Hz that shows up as a hard drop to 30 fps. Turn v-sync off, or lower `work_resolution` in `dlss5-feed.cfg` (Feeder path, D3D11 games).
-- **API detection can come back unknown** (monolithic Unreal exes load D3D at runtime, nothing static to read). The tool then assumes DX12 and says so; a DX11 game in that state would miss the bridge. `--check` shows what was detected.
-- The DLSS 5 add-on and its model are a leaked, closed-source build. The tool downloads whatever the rhi-repo releases currently host and cannot vouch for them.
+- **Feeder + exclusive fullscreen.** При смене фокуса игра может пересоздать swapchain, из-за чего DLSS5-Feeder пересобирает DLSS feature. Для затронутых игр borderless/windowed обычно стабильнее.
+- **Стоимость кадров.** Neural Rendering в высоком нативном разрешении может добавлять несколько миллисекунд времени кадра. При включённом v-sync это способно привести к резким ступеням FPS.
+- **API иногда определяется как unknown.** Некоторые exe загружают D3D динамически. В таком случае инструмент предполагает DX12; результат можно проверить через `--check`.
+- DLSS 5 add-on/model, распространяемые через указанный community-источник, закрытые; инструмент не может гарантировать безопасность сторонних бинарных файлов.
 
-## Not handled
+## Что не поддерживается / особенности
 
-- **32-bit games** are handled since 0.10.0 (beta, Feeder path only): the Feeder's `dlss5-feed.addon32` and a 32-bit ReShade go beside the exe, and a `host64\` folder gets `dlss5-feed-host64.exe`, a 64-bit ReShade, the DLSS 5 add-on and the two NVIDIA DLLs — the layout the [Feeder README](https://github.com/jlrouzies-fr/DLSS5-Feeder#install-for-a-32-bit-game-beta) describes. The 32-bit add-on supports Direct3D 11 only; the helper's DLSS 5 panel is shown inside the game from the Feeder's Add-ons page. Verified here only as a file layout, not in a game — reports welcome on #17.
-- **DirectX 9** and **Vulkan** games — different proxy / a Vulkan layer; refused.
-- Online games — the tool refuses when it finds Easy Anti-Cheat, BattlEye or GameGuard files in the install (ReShade add-on injection is exactly what they flag: kick at best, ban at worst). Overwatch, Valorant and League (Blizzard/Riot anti-cheat, no marker files) are refused by exe name; Overwatch additionally blocks unsigned DLLs, so add-ons fail there with error `0x80090006`. Some games let you switch the anti-cheat off for offline play (GTA V: untick *Enable BattlEye* in the Rockstar Games Launcher, or launch with `-nobattleye`; Rockstar's own FAQ says BattlEye is only needed for GTA Online). For those, a checkbox under the warning — or `--ignore-anticheat` on the command line, or `DLSS5ONECLICK_IGNORE_ANTICHEAT=1` — installs anyway, at your own risk: do it only if the anti-cheat really is off, and never take that install online.
+- **32-bit игры** поддерживаются по Feeder-сценарию через 32-битные ReShade/add-on и helper в `host64\`. Этот путь рассчитан на D3D11.
+- **DirectX 9** и **Vulkan** текущим workflow не поддерживаются.
+- Онлайн-игры с распознанными anti-cheat системами по умолчанию блокируются. Использовать override следует только если anti-cheat действительно отключён, и такую модифицированную установку не следует запускать в онлайн-режиме.
 
-## Development
+## Разработка
 
-Rust 2021, single crate. GUI is egui/eframe; HTTP is reqwest (rustls); archives via the `zip` crate.
+Rust 2021, один crate. GUI — egui/eframe; HTTP — reqwest (rustls); работа с архивами — crate `zip`.
 
 ```text
 cargo test
 cargo build --release   # target/release/dlss5oneclick.exe
 ```
 
-Tests use local fakes only; no network. Verified 2026-08-31: full live installs against dummy game folders (both paths), and detection against real installs — Fell & Sell (Unity, DX11, no DLSS → Feeder), Fatal Claw (Unreal, DX11 + DLSS → native + bridge), Mortal Shell 2 (Unreal + DLSS → native), The Witcher 3 (`bin\x64_dx12`, native DX12), Jotunnslayer and Trails in the Sky (DX11 + DLSS → native + bridge). DLSS 5 confirmed running in Fell & Sell (`feature ready … DLAA`, NR evaluating, F6 toggling).
+Тесты используют локальные fake-данные и не требуют сети.
 
-## Credits
+## Благодарности
 
-This fork is based on the original DLSS5oneclick project and continues to automate work from several projects. Credit belongs to:
+Этот форк основан на оригинальном DLSS5oneclick и автоматизирует работу нескольких сторонних проектов. Основные авторы и проекты:
 
-- **[Faisal Bahashwan (`faisalkindi`)](https://github.com/faisalkindi)** — original author of [DLSS5oneclick](https://github.com/faisalkindi/DLSS5oneclick), the upstream project this repository is forked from.
-- **[crosire](https://github.com/crosire)** — [ReShade](https://reshade.me) and [reshade-shaders](https://github.com/crosire/reshade-shaders), the injection framework everything here runs inside.
-- **[jlrouzies-fr](https://github.com/jlrouzies-fr)** — [DLSS5-Feeder](https://github.com/jlrouzies-fr/DLSS5-Feeder), the add-on that builds a DLSS contract from ReShade depth + motion vectors, and the install guide this tool follows step by step.
-- **[Afzaal (Kaidō)](https://github.com/umar-afzaal)** — [LumeniteFX](https://github.com/umar-afzaal/LumeniteFX), the motion-vector provider (Kernel 2.0).
-- **[Simple Icons](https://simpleicons.org)** (CC0 1.0) — the Steam, Xbox, Epic Games, GOG and Ko-fi marks in the window; the marks themselves are trademarks of their owners.
-- **[praydog](https://github.com/praydog)** — [REFramework](https://github.com/praydog/REFramework), installed first in RE Engine games.
-- **[clshortfuse](https://github.com/clshortfuse)** and the RenoDX community — [RenoDX](https://github.com/clshortfuse/renodx), which the DLSS 5 neural-rendering add-on is built on.
-- **[RankFTW](https://github.com/RankFTW)** — [RHI](https://github.com/RankFTW/RHI) and the [rhi-repo](https://github.com/RankFTW/rhi-repo) releases that host the DLSS 5 add-on and the NVIDIA runtimes.
-- **NVIDIA** — DLSS 5 itself and the `nvngx_dlssnr.dll` / `nvngx_dlss.dll` runtimes.
-- **DSOGaming** — the [article](https://www.dsogaming.com/articles/heres-how-you-can-install-dlss-5-to-all-dx9-dx10-dx11-dx12-and-vulkan-games/) that put the pieces together and started this.
-- **[Dagherbou](https://github.com/Dagherbou)** — [OptiScaler_DLSSNR](https://github.com/Dagherbou/OptiScaler_DLSSNR), the OptiScaler fork with the built-in Neural Rendering pass, and the **[OptiScaler team](https://github.com/optiscaler/OptiScaler)** it builds on (GPL-3).
-- **[NIGos](https://github.com/NIGos)** — [dlss5-bridge](https://github.com/NIGos/dlss5-bridge), which lets the DLSS 5 add-on work in D3D11 games that have their own DLSS.
-- **[emilk](https://github.com/emilk)** — [egui / eframe](https://github.com/emilk/egui), the UI toolkit.
-- Fonts: [Sora](https://github.com/sora-xor/sora-font) by the Sora project, [IBM Plex Sans](https://github.com/IBM/plex) by IBM, [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) by JetBrains — all SIL OFL.
+- **[Faisal Bahashwan (`faisalkindi`)](https://github.com/faisalkindi)** — автор оригинального [DLSS5oneclick](https://github.com/faisalkindi/DLSS5oneclick), на котором основан этот форк.
+- **[crosire](https://github.com/crosire)** — [ReShade](https://reshade.me) и [reshade-shaders](https://github.com/crosire/reshade-shaders).
+- **[jlrouzies-fr](https://github.com/jlrouzies-fr)** — [DLSS5-Feeder](https://github.com/jlrouzies-fr/DLSS5-Feeder).
+- **[Afzaal (Kaidō)](https://github.com/umar-afzaal)** — [LumeniteFX](https://github.com/umar-afzaal/LumeniteFX).
+- **[praydog](https://github.com/praydog)** — [REFramework](https://github.com/praydog/REFramework).
+- **[clshortfuse](https://github.com/clshortfuse)** и RenoDX community — [RenoDX](https://github.com/clshortfuse/renodx).
+- **[RankFTW](https://github.com/RankFTW)** — [RHI](https://github.com/RankFTW/RHI) и [rhi-repo](https://github.com/RankFTW/rhi-repo).
+- **NVIDIA** — DLSS 5 и NVIDIA runtimes.
+- **[Dagherbou](https://github.com/Dagherbou)** и **[OptiScaler team](https://github.com/optiscaler/OptiScaler)** — интеграция OptiScaler / DLSSNR.
+- **[NIGos](https://github.com/NIGos)** — [dlss5-bridge](https://github.com/NIGos/dlss5-bridge).
+- **[emilk](https://github.com/emilk)** — [egui / eframe](https://github.com/emilk/egui).
+- Шрифты: [Sora](https://github.com/sora-xor/sora-font), [IBM Plex Sans](https://github.com/IBM/plex), [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) — SIL OFL.
 
-## License
+## Лицензия
 
-This fork retains the upstream **MIT License** and the original copyright notice. Each downloaded component keeps its own license: ReShade BSD-3; DLSS5-Feeder — see its repo; LumeniteFX — AGNYA; dlss5-bridge MIT; the DLSS 5 add-on (`renodx-dlss5.addon64`) — closed source, no license published; NVIDIA runtimes — NVIDIA's terms.
+Этот форк сохраняет upstream-лицензию **MIT License** и оригинальный copyright notice. Каждый скачиваемый сторонний компонент сохраняет собственную лицензию и условия использования.
