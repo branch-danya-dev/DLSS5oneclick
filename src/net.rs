@@ -12,7 +12,10 @@ pub type Progress<'a> = &'a (dyn Fn(u8, &str) + Sync);
 pub fn client() -> Result<Client> {
     Client::builder()
         .user_agent(concat!("DLSS5oneclick/", env!("CARGO_PKG_VERSION")))
-        .timeout(Duration::from_secs(120))
+        // Connect must fail fast; a stuck DNS/TLS handshake otherwise leaves the
+        // Install button disabled for the full request timeout × retries.
+        .connect_timeout(Duration::from_secs(15))
+        .timeout(Duration::from_secs(60))
         .build()
         .context("cannot build HTTP client")
 }
@@ -185,9 +188,10 @@ fn with_retry<T>(progress: Progress, label: &str, f: impl Fn() -> Result<T>) -> 
                 let retryable = msg.contains("error sending request")
                     || msg.contains("Connect")
                     || msg.contains("corrupt message")
-                    || msg.contains("connection")
-                    || msg.contains("timed out")
-                    || msg.contains("reset");
+                    || msg.contains("connection reset")
+                    || msg.contains("connection refused");
+                // Do not retry plain timeouts — Install would sit on "Looking up…"
+                // for minutes with the button disabled (reshade.me / GitHub).
                 if !retryable || attempt == 4 {
                     return Err(e);
                 }
