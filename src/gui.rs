@@ -5,6 +5,8 @@ use crate::diagnose;
 use crate::feeder_cfg::{self, FeederKnobs};
 use crate::game::{self, GameStatus};
 use crate::hotkeys::{self, GameHotkeys, KeyChord};
+#[allow(unused_imports)] // `i18n` reserved for fmt_n in later phases
+use crate::i18n::{self, Language, T};
 use crate::installer::{self, Engine, StepState};
 use crate::library::{self, Game, Store};
 use crate::logo;
@@ -15,6 +17,7 @@ use crate::reshade_ini;
 use crate::settings::Settings;
 use crate::text;
 use crate::theme::{self as t};
+use crate::ui_components as ui_c;
 use crate::update;
 use eframe::egui::{
     self, Align, Color32, CornerRadius, Frame, Layout, Margin, RichText, Stroke, StrokeKind, Vec2,
@@ -115,6 +118,7 @@ pub struct App {
     search: String,
     /// Official store marks (Simple Icons, CC0), white on transparent, tinted at paint time.
     store_icons: HashMap<Store, egui::TextureHandle>,
+    #[allow(dead_code)] // kept for a future icon-capable support button
     kofi_icon: Option<egui::TextureHandle>,
     /// Global defaults from settings.json.
     settings: Settings,
@@ -135,8 +139,6 @@ pub struct App {
 }
 
 pub const KOFI_URL: &str = "https://ko-fi.com/kindiboy";
-/// Ko-fi's brand red.
-const KOFI_RED: Color32 = Color32::from_rgb(0xff, 0x5e, 0x5b);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Page {
@@ -1409,103 +1411,103 @@ fn paint_status_glyph(ui: &mut egui::Ui, ok: bool, optional: bool) {
     }
 }
 
-const CARD_W: f32 = 150.0;
+const CARD_W: f32 = 160.0;
 const CARD_GAP: f32 = 14.0;
-const CAPTION_H: f32 = 40.0;
+const CAPTION_H: f32 = 68.0;
+const POSTER_H: f32 = 120.0;
 
 impl App {
+    fn lang(&self) -> Language {
+        self.settings.language
+    }
+
+    fn tr(&self, key: T) -> &'static str {
+        self.lang().t(key)
+    }
+
     fn games_page(&mut self, ui: &mut egui::Ui) {
         if self.store_icons.is_empty() {
             self.store_icons = load_store_icons(ui.ctx());
         }
-        // ── header ────────────────────────────────────────────────
-        let dx12 = self
-            .meta
-            .values()
-            .filter(|m| m.api.starts_with("DirectX 12"))
-            .count();
+        let installed_n = self.meta.values().filter(|m| m.installed).count();
+        let total_n = self.games.len();
+        let available_n = total_n.saturating_sub(installed_n);
+
+        ui_c::page_title(
+            ui,
+            self.tr(T::YourGames),
+            Some(self.tr(T::YourGamesSub)),
+        );
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 10.0;
-            ui.label(RichText::new("Games").font(t::sora(16.0)).color(t::TEXT));
-            let summary = if self.scanning {
-                "scanning Steam, Epic, GOG and Xbox…".to_owned()
-            } else {
-                format!("{} found · {dx12} on DirectX 12", self.games.len())
-            };
-            ui.label(
-                RichText::new(summary)
-                    .font(t::plex(12.0))
-                    .color(t::TEXT_MUTED),
-            );
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                ui.spacing_mut().item_spacing.x = 8.0;
-                let btn = |text: &str, accent: bool| {
-                    egui::Button::new(
-                        RichText::new(text)
-                            .font(t::plex_medium(12.5))
-                            .color(if accent { t::BG } else { t::TEXT_OFF }),
-                    )
-                    .fill(if accent {
-                        t::ACCENT
-                    } else {
-                        Color32::TRANSPARENT
-                    })
-                    .stroke(Stroke::new(
-                        1.0,
-                        if accent { t::ACCENT } else { t::BORDER_STRONG },
-                    ))
-                    .corner_radius(CornerRadius::same(8))
-                    .min_size(Vec2::new(96.0, 34.0))
-                };
-                if ui
-                    // Rescanning mid-install would renumber the cards under the
-                    // one being worked on.
-                    .add_enabled(!self.scanning && !self.running, btn("Rescan", true))
-                    .clicked()
-                {
-                    self.start_scan(ui.ctx());
-                }
-                if ui.add(btn("Add a folder", false)).clicked() {
-                    if let Some(p) = rfd::FileDialog::new()
-                        .set_title("Pick the game's install folder")
-                        .pick_folder()
-                    {
-                        self.add_game(p, ui.ctx());
-                    }
-                }
-                if ui.add(btn("Add a game", false)).clicked() {
-                    if let Some(p) = rfd::FileDialog::new()
-                        .add_filter("Executables", &["exe", "bin"])
-                        .pick_file()
-                    {
-                        self.add_game(p, ui.ctx());
-                    }
-                }
-                let search = egui::TextEdit::singleline(&mut self.search)
-                    .font(t::plex(12.0))
-                    .hint_text(RichText::new("Search").color(t::TEXT_DIM))
-                    .desired_width(160.0);
-                ui.add(search);
-            });
+            ui_c::summary_stat(ui, self.tr(T::TotalGames), total_n.to_string());
+            ui_c::summary_stat(ui, self.tr(T::InstalledCount), installed_n.to_string());
+            ui_c::summary_stat(ui, self.tr(T::AvailableCount), available_n.to_string());
         });
-        ui.add_space(4.0);
+        ui.add_space(10.0);
+
+        // ── toolbar ───────────────────────────────────────────────
+        let search_hint = self.tr(T::SearchGames);
+        let add_game_l = self.tr(T::AddGame);
+        let add_folder_l = self.tr(T::AddFolder);
+        let rescan_l = self.tr(T::Rescan);
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            let search = egui::TextEdit::singleline(&mut self.search)
+                .font(t::plex(12.5))
+                .hint_text(RichText::new(search_hint).color(t::TEXT_DIM))
+                .desired_width(220.0);
+            ui.add(search);
+            if ui.add(ui_c::secondary_button(add_game_l)).clicked() {
+                if let Some(p) = rfd::FileDialog::new()
+                    .add_filter("Executables", &["exe", "bin"])
+                    .pick_file()
+                {
+                    self.add_game(p, ui.ctx());
+                }
+            }
+            if ui.add(ui_c::secondary_button(add_folder_l)).clicked() {
+                if let Some(p) = rfd::FileDialog::new()
+                    .set_title("Pick the game's install folder")
+                    .pick_folder()
+                {
+                    self.add_game(p, ui.ctx());
+                }
+            }
+            if ui
+                // Rescanning mid-install would renumber the cards under the
+                // one being worked on.
+                .add_enabled(
+                    !self.scanning && !self.running,
+                    ui_c::primary_button(rescan_l).min_size(Vec2::new(120.0, 40.0)),
+                )
+                .clicked()
+            {
+                self.start_scan(ui.ctx());
+            }
+        });
+        ui.add_space(8.0);
 
         // ── grid, grouped by store ────────────────────────────────
         let needle = self.search.trim().to_ascii_lowercase();
         let mut clicked: Option<(PathBuf, usize)> = None;
         let mut forgotten: Option<PathBuf> = None;
         let mut update = false;
+        let section_ours = self.tr(T::InstalledByTool);
+        let section_manual = self.tr(T::AddedByYou);
+        let empty_title = self.tr(T::NoGamesFound);
+        let empty_hint = self.tr(T::NoGamesHint);
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = 10.0;
                 // Room for the scrollbar, then as many columns as fit at the
-                // minimum width; the cards then grow to fill the row (up to 190 px).
+                // minimum width; the cards then grow to fill the row (up to 200 px).
                 let avail = ui.available_width() - 14.0;
                 let cols = ((avail + CARD_GAP) / (CARD_W + CARD_GAP)).floor().max(1.0) as usize;
                 let card_w =
-                    ((avail - CARD_GAP * (cols as f32 - 1.0)) / cols as f32).clamp(CARD_W, 190.0);
-                let poster_h = (card_w * 1.5).round();
+                    ((avail - CARD_GAP * (cols as f32 - 1.0)) / cols as f32).clamp(CARD_W, 200.0);
+                let poster_h = POSTER_H.max((card_w * 0.75).round());
                 // None = "Installed by this tool", always first: the whole
                 // point is to see at a glance what has been modified and
                 // what has fallen behind.
@@ -1550,7 +1552,8 @@ impl App {
                         ui.spacing_mut().item_spacing.x = 8.0;
                         ui.label(
                             RichText::new(match section {
-                                None => "Installed by this tool",
+                                None => section_ours,
+                                Some(Store::Manual) => section_manual,
                                 Some(st) => st.label(),
                             })
                             .font(t::plex_semibold(13.0))
@@ -1619,14 +1622,12 @@ impl App {
                     ui.add_space(40.0);
                     ui.vertical_centered(|ui| {
                         ui.label(
-                            RichText::new(
-                                "No installed games found from Steam, Epic, GOG or Xbox.",
-                            )
-                            .font(t::plex(13.0))
-                            .color(t::TEXT_MUTED),
+                            RichText::new(empty_title)
+                                .font(t::plex(13.0))
+                                .color(t::TEXT_MUTED),
                         );
                         ui.label(
-                            RichText::new("Use Add a folder to point at a game by hand.")
+                            RichText::new(empty_hint)
                                 .font(t::plex(12.0))
                                 .color(t::TEXT_DIM),
                         );
@@ -1653,15 +1654,15 @@ impl App {
         let resp = ui.interact(rect, ui.id().with(("card", i)), egui::Sense::click());
         let hovered = resp.hovered();
         let p = ui.painter();
-        let r = CornerRadius::same(10);
-        p.rect_filled(rect, r, t::TILE);
+        let r = t::card_rounding();
+        p.rect_filled(rect, r, t::SURFACE);
         let poster =
             egui::Rect::from_min_size(rect.min, Vec2::new(rect.width(), rect.height() - CAPTION_H));
         match self.posters.get(&i) {
             Some(Some(tex)) => {
                 let top = CornerRadius {
-                    nw: 10,
-                    ne: 10,
+                    nw: t::CARD_RADIUS,
+                    ne: t::CARD_RADIUS,
                     sw: 0,
                     se: 0,
                 };
@@ -1689,8 +1690,8 @@ impl App {
                 p.rect_filled(
                     poster,
                     CornerRadius {
-                        nw: 10,
-                        ne: 10,
+                        nw: t::CARD_RADIUS,
+                        ne: t::CARD_RADIUS,
                         sw: 0,
                         se: 0,
                     },
@@ -1710,20 +1711,61 @@ impl App {
             }
         }
         let p = ui.painter();
-        // DirectX chip, top right.
+        // API + status chips, top of poster.
         if let Some(m) = self.meta.get(&i) {
             let font = t::plex_semibold(9.5);
-            let galley = p.layout_no_wrap(m.api.to_owned(), font.clone(), t::BG);
             let pad = Vec2::new(7.0, 3.0);
-            let chip = egui::Rect::from_min_size(
-                egui::pos2(
-                    poster.right() - galley.size().x - pad.x * 2.0 - 8.0,
-                    poster.top() + 8.0,
-                ),
-                galley.size() + pad * 2.0,
+            let mut chip_x = poster.right() - 8.0;
+            let paint_chip =
+                |p: &egui::Painter, text: &str, fg: Color32, bg: Color32, border: Color32, right: f32| {
+                    let galley = p.layout_no_wrap(text.to_owned(), font.clone(), fg);
+                    let chip = egui::Rect::from_min_size(
+                        egui::pos2(right - galley.size().x - pad.x * 2.0, poster.top() + 8.0),
+                        galley.size() + pad * 2.0,
+                    );
+                    p.rect_filled(chip, t::chip_rounding(), bg);
+                    p.rect_stroke(
+                        chip,
+                        t::chip_rounding(),
+                        Stroke::new(1.0, border),
+                        StrokeKind::Inside,
+                    );
+                    p.galley(chip.min + pad, galley, fg);
+                    chip.left() - 4.0
+                };
+            // Installed = Success, Not installed = Neutral, Update = Warning.
+            let (status_short, status_fg, status_bg, status_bd) = if !m.stale.is_empty() {
+                (
+                    self.tr(T::StatusUpdate),
+                    t::WARNING,
+                    t::WARNING_SOFT,
+                    Color32::from_rgb(0x7a, 0x5a, 0x22),
+                )
+            } else if m.installed {
+                (
+                    self.tr(T::StatusInstalled),
+                    t::SUCCESS,
+                    t::SUCCESS_SOFT,
+                    Color32::from_rgb(0x2e, 0x6b, 0x45),
+                )
+            } else {
+                (
+                    self.tr(T::StatusNotInstalled),
+                    t::TEXT_SECONDARY,
+                    t::SURFACE_ALT,
+                    t::BORDER,
+                )
+            };
+            chip_x = paint_chip(p, status_short, status_fg, status_bg, status_bd, chip_x);
+            chip_x = paint_chip(
+                p,
+                &m.api,
+                t::PRIMARY_HOVER,
+                t::PRIMARY_SOFT,
+                t::BORDER_ACTIVE,
+                chip_x,
             );
-            p.rect_filled(chip, CornerRadius::same(6), t::ACCENT);
-            p.galley(chip.min + pad, galley, t::BG);
+            let _ = chip_x;
             // A game this tool set up whose files upstream has moved past.
             if !m.stale.is_empty() && self.updating != Some(i) {
                 let galley = p.layout_no_wrap("UPDATE".to_owned(), font, t::BG);
@@ -1731,7 +1773,7 @@ impl App {
                     egui::pos2(poster.left() + 8.0, poster.top() + 8.0),
                     galley.size() + pad * 2.0,
                 );
-                p.rect_filled(badge, CornerRadius::same(6), t::WARN);
+                p.rect_filled(badge, t::chip_rounding(), t::WARN);
                 p.galley(badge.min + pad, galley, t::BG);
             }
             // Status line over the bottom of the poster.
@@ -1792,14 +1834,14 @@ impl App {
                     egui::pos2(poster.right() - 22.0, poster.bottom() - 48.0),
                     warn.size() + Vec2::new(10.0, 4.0),
                 );
-                p.rect_filled(badge, CornerRadius::same(6), t::WARN);
+                p.rect_filled(badge, t::chip_rounding(), t::WARN);
                 p.galley(badge.min + Vec2::new(5.0, 2.0), warn, t::BG);
             }
         }
-        // Caption: store mark on the left, title beside it.
+        // Caption: store mark, title, truncated path, Open/Configure.
         let cap = egui::Rect::from_min_max(egui::pos2(rect.left(), poster.bottom()), rect.max);
         let mark = egui::Rect::from_min_size(
-            egui::pos2(cap.left() + 10.0, cap.top() + 9.0),
+            egui::pos2(cap.left() + 10.0, cap.top() + 8.0),
             Vec2::splat(16.0),
         );
         store_mark(ui, &self.store_icons, mark, g.store, t::TEXT_OFF);
@@ -1819,15 +1861,35 @@ impl App {
             t::TEXT,
         );
         let clip = egui::Rect::from_min_max(cap.min, egui::pos2(cap.right(), cap.bottom() - 4.0));
-        ui.painter().with_clip_rect(clip).galley(
-            egui::pos2(title_x, cap.top() + 8.0),
-            title,
-            t::TEXT,
+        let painter = ui.painter().with_clip_rect(clip);
+        painter.galley(egui::pos2(title_x, cap.top() + 6.0), title, t::TEXT);
+        let path_full = g.dir.to_string_lossy();
+        let path_short = ui_c::truncate_path(&path_full, 28);
+        let path_galley = painter.layout_no_wrap(
+            path_short,
+            t::plex(10.5),
+            t::TEXT_MUTED,
+        );
+        painter.galley(
+            egui::pos2(title_x, cap.top() + 24.0),
+            path_galley,
+            t::TEXT_MUTED,
+        );
+        let open_label = self.tr(T::OpenSetup);
+        let open_galley = painter.layout_no_wrap(
+            open_label.to_owned(),
+            t::plex_medium(10.5),
+            if hovered { t::PRIMARY_HOVER } else { t::TEXT_DIM },
+        );
+        painter.galley(
+            egui::pos2(title_x, cap.top() + 42.0),
+            open_galley,
+            if hovered { t::PRIMARY_HOVER } else { t::TEXT_DIM },
         );
         p.rect_stroke(
             rect,
             r,
-            Stroke::new(1.0, if hovered { t::ACCENT } else { t::BORDER }),
+            Stroke::new(1.0, if hovered { t::BORDER_ACTIVE } else { t::BORDER }),
             StrokeKind::Inside,
         );
         if hovered {
@@ -1862,10 +1924,10 @@ impl App {
                 }
             }
             resp.clone().on_hover_text(format!(
-                "{}{}\n{}{stale}{caps}",
+                "{}\n{}{}{stale}{caps}",
                 g.title,
+                path_full,
                 caps,
-                g.dir.display()
             ));
         }
         // Being installed right now: dim the poster, say so, and show how far
@@ -2670,14 +2732,14 @@ impl eframe::App for App {
                 .request_repaint_after(std::time::Duration::from_millis(120));
         }
 
-        // ── top ribbon: logo · Games / Setup / About · status ────────
+        // ── top ribbon: logo · nav · status · lang · support ─────
         egui::Panel::top("ribbon")
             .frame(
                 Frame::new()
                     .fill(t::HEADER)
                     .inner_margin(Margin {
                         left: 20,
-                        right: 24,
+                        right: 20,
                         top: 10,
                         bottom: 10,
                     })
@@ -2687,148 +2749,115 @@ impl eframe::App for App {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 10.0;
                     let (rect, _) = ui.allocate_exact_size(Vec2::splat(30.0), egui::Sense::hover());
-                    logo::paint_mark(ui.painter(), rect, t::ACCENT, t::BG);
+                    logo::paint_mark(ui.painter(), rect, t::PRIMARY, t::BG);
                     ui.vertical(|ui| {
                         ui.spacing_mut().item_spacing.y = 0.0;
-                        ui.label(RichText::new("DLSS 5").font(t::sora(16.0)).color(t::TEXT));
+                        ui.label(
+                            RichText::new("DLSS5oneclick")
+                                .font(t::sora(15.0))
+                                .color(t::TEXT),
+                        );
                         ui.label(
                             RichText::new("ONECLICK")
                                 .font(t::plex_semibold(9.0))
                                 .color(t::TEXT_MUTED),
                         );
                     });
-                    ui.add_space(22.0);
+                    ui.add_space(18.0);
                     let setup_enabled = self.resolved_exe.is_some();
-                    for (page, label, enabled) in [
-                        (Page::Games, "Games", true),
-                        (Page::Setup, "Setup", setup_enabled),
-                        (Page::Settings, "Settings", true),
-                        (Page::About, "About", true),
-                    ] {
+                    let tabs = [
+                        (Page::Games, T::Games, true),
+                        (Page::Setup, T::Setup, setup_enabled),
+                        (Page::Settings, T::Settings, true),
+                        (Page::About, T::About, true),
+                    ];
+                    for (page, key, enabled) in tabs {
                         let active = self.page == page;
-                        let galley = ui.painter().layout_no_wrap(
-                            label.to_owned(),
-                            t::plex_medium(13.5),
-                            t::TEXT,
-                        );
-                        let size = Vec2::new(galley.size().x + 32.0, 36.0);
-                        let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::click());
-                        if active {
-                            ui.painter()
-                                .rect_filled(rect, CornerRadius::same(10), t::TILE);
-                            ui.painter().rect_stroke(
-                                rect,
-                                CornerRadius::same(10),
-                                Stroke::new(1.0, t::BORDER_STRONG),
-                                StrokeKind::Inside,
-                            );
-                        } else if resp.hovered() && enabled {
-                            ui.painter()
-                                .rect_filled(rect, CornerRadius::same(10), t::PANEL);
-                        }
-                        let color = if !enabled {
-                            t::TEXT_DIM
-                        } else if active {
-                            t::TEXT
-                        } else {
-                            t::TEXT_OFF
-                        };
-                        ui.painter()
-                            .galley(rect.center() - galley.size() / 2.0, galley, color);
-                        if page == Page::Games && !self.games.is_empty() {
-                            ui.painter().circle_filled(
-                                rect.right_top() + Vec2::new(-9.0, 9.0),
-                                2.5,
-                                t::ACCENT,
-                            );
-                        }
-                        if resp.clicked() && enabled {
+                        if ui_c::nav_tab(ui, self.tr(key), active, enabled).clicked() {
                             self.page = page;
                         }
                     }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        ui.spacing_mut().item_spacing.x = 10.0;
-                        // ── Ko-fi (rightmost) ────────────────────
-                        if self.kofi_icon.is_none() {
-                            self.kofi_icon =
-                                image::load_from_memory(include_bytes!("../assets/kofi.png"))
-                                    .ok()
-                                    .map(|i| {
-                                        let i = i.to_rgba8();
-                                        let (w, h) = i.dimensions();
-                                        ui.ctx().load_texture(
-                                            "kofi",
-                                            egui::ColorImage::from_rgba_unmultiplied(
-                                                [w as usize, h as usize],
-                                                i.as_raw(),
-                                            ),
-                                            egui::TextureOptions::LINEAR,
-                                        )
-                                    });
-                        }
-                        let label = "Buy me a Cup of Coffee";
-                        let galley = ui.painter().layout_no_wrap(
-                            label.to_owned(),
-                            t::plex_semibold(12.5),
-                            Color32::WHITE,
-                        );
-                        let size = Vec2::new(galley.size().x + 46.0, 36.0);
-                        let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::click());
-                        let fill = if resp.hovered() {
-                            Color32::from_rgb(0xff, 0x74, 0x71)
-                        } else {
-                            KOFI_RED
-                        };
-                        ui.painter().rect_filled(rect, CornerRadius::same(10), fill);
-                        if let Some(tex) = &self.kofi_icon {
-                            let icon = egui::Rect::from_center_size(
-                                rect.left_center() + Vec2::new(20.0, 0.0),
-                                Vec2::splat(18.0),
-                            );
-                            egui::Image::from_texture(tex)
-                                .fit_to_exact_size(icon.size())
-                                .paint_at(ui, icon);
-                        }
-                        ui.painter().galley(
-                            egui::pos2(rect.left() + 36.0, rect.center().y - galley.size().y / 2.0),
-                            galley,
-                            Color32::WHITE,
-                        );
-                        if resp
+                        ui.spacing_mut().item_spacing.x = 8.0;
+                        // Ko-fi — secondary, rightmost
+                        if ui
+                            .add(
+                                ui_c::secondary_button(self.tr(T::Support))
+                                    .min_size(Vec2::new(96.0, 34.0)),
+                            )
                             .on_hover_cursor(egui::CursorIcon::PointingHand)
                             .clicked()
                         {
                             ui.ctx().open_url(egui::OpenUrl::new_tab(KOFI_URL));
                         }
-                        // In a narrow window these used to be drawn over the
-                        // page tabs — "About" and "Ready" on the same pixels.
-                        // Decoration goes first, the tabs stay reachable (#64).
-                        if ui.available_width() > 90.0 {
-                            chip(
-                                ui,
-                                concat!("v", env!("CARGO_PKG_VERSION")),
-                                t::TEXT_DIM,
-                                false,
+                        // RU | EN language toggle
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 2.0;
+                            let ru = self.settings.language == Language::Ru;
+                            let en = self.settings.language == Language::En;
+                            let lang_btn = |label: &str, on: bool| {
+                                egui::Button::new(
+                                    RichText::new(label)
+                                        .font(t::plex_medium(12.0))
+                                        .color(if on { t::TEXT } else { t::TEXT_MUTED }),
+                                )
+                                .fill(if on {
+                                    t::PRIMARY_SOFT
+                                } else {
+                                    Color32::TRANSPARENT
+                                })
+                                .stroke(Stroke::new(
+                                    1.0,
+                                    if on { t::BORDER_ACTIVE } else { t::BORDER },
+                                ))
+                                .corner_radius(t::control_rounding())
+                                .min_size(Vec2::new(36.0, 28.0))
+                            };
+                            if ui.add(lang_btn("RU", ru)).clicked() && !ru {
+                                self.settings.language = Language::Ru;
+                                let _ = self.settings.save();
+                            }
+                            ui.label(
+                                RichText::new("|")
+                                    .font(t::plex(11.0))
+                                    .color(t::TEXT_DIM),
+                            );
+                            if ui.add(lang_btn("EN", en)).clicked() && !en {
+                                self.settings.language = Language::En;
+                                let _ = self.settings.save();
+                            }
+                        });
+                        if ui.available_width() > 72.0 {
+                            ui.label(
+                                RichText::new(concat!("v", env!("CARGO_PKG_VERSION")))
+                                    .font(t::plex(11.5))
+                                    .color(t::TEXT_DIM),
                             );
                         }
-                        if ui.available_width() > 130.0 {
-                            chip(ui, "LEAKED BUILD", t::ACCENT, true);
+                        if ui.available_width() > 110.0 {
+                            ui_c::chip(ui, self.tr(T::LeakedBuild), ui_c::ChipTone::Primary);
                         }
-                        if ui.available_width() > 64.0 {
-                            let (r, _) =
-                                ui.allocate_exact_size(Vec2::new(64.0, 20.0), egui::Sense::hover());
-                            ui.painter().circle_filled(
-                                r.left_center() + Vec2::new(5.0, 0.0),
-                                3.5,
-                                t::ACCENT,
-                            );
-                            ui.painter().text(
-                                r.left_center() + Vec2::new(14.0, 0.0),
-                                egui::Align2::LEFT_CENTER,
-                                "Ready",
-                                t::plex_semibold(12.0),
-                                t::TEXT,
-                            );
+                        if ui.available_width() > 72.0 {
+                            Frame::new()
+                                .fill(t::SUCCESS_SOFT)
+                                .stroke(Stroke::new(1.0, Color32::from_rgb(0x2e, 0x6b, 0x45)))
+                                .corner_radius(t::chip_rounding())
+                                .inner_margin(Margin::symmetric(8, 4))
+                                .show(ui, |ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.spacing_mut().item_spacing.x = 6.0;
+                                        let (r, _) = ui.allocate_exact_size(
+                                            Vec2::splat(8.0),
+                                            egui::Sense::hover(),
+                                        );
+                                        ui.painter().circle_filled(r.center(), 3.5, t::SUCCESS);
+                                        ui.label(
+                                            RichText::new(self.tr(T::Ready))
+                                                .font(t::plex_medium(12.0))
+                                                .color(t::SUCCESS),
+                                        );
+                                    });
+                                });
                         }
                     });
                 });
@@ -2969,44 +2998,18 @@ impl eframe::App for App {
             egui::Panel::top("first_run_tip")
                 .frame(
                     Frame::new()
-                        .fill(t::TILE)
+                        .fill(t::PANEL)
                         .inner_margin(Margin {
-                            left: 18,
-                            right: 18,
-                            top: 10,
-                            bottom: 10,
-                        })
-                        .stroke(Stroke::new(1.0, t::BORDER)),
+                            left: 20,
+                            right: 20,
+                            top: 8,
+                            bottom: 4,
+                        }),
                 )
                 .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        // The button is drawn after the text but sits on top of
-                        // it: reserve its width first, or the wrapped last line
-                        // runs underneath it (#77).
-                        let tip_w = (ui.available_width() - 92.0).max(120.0);
-                        ui.vertical(|ui| {
-                            ui.set_max_width(tip_w);
-                            ui.label(
-                                RichText::new("Quick tip")
-                                    .font(t::plex_semibold(13.0))
-                                    .color(t::TEXT),
-                            );
-                            ui.label(
-                                RichText::new(
-                                    "This tool installs ReShade + DLSS5-Feeder + neural DLSS for games that ship without DLSS. \
-                                     After Install: in-game press Home → Add-ons tab → enable DLSS 5 Neural Rendering. \
-                                     Use Settings to seed Feeder defaults on the next Install.",
-                                )
-                                .font(t::plex(12.0))
-                                .color(t::TEXT_SOFT),
-                            );
-                        });
-                        ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
-                            if ui.button("Got it").clicked() {
-                                self.tip_dismissed = true;
-                            }
-                        });
-                    });
+                    if ui_c::info_banner(ui, self.tr(T::TipTitle), self.tr(T::TipBody)) {
+                        self.tip_dismissed = true;
+                    }
                 });
         }
 
@@ -3019,6 +3022,7 @@ impl eframe::App for App {
             }))
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = 12.0;
+                ui_c::content_column(ui, |ui| {
                 match self.page {
                     Page::Games => {
                         self.games_page(ui);
@@ -3971,6 +3975,7 @@ impl eframe::App for App {
                      re-run install to patch TRAA if UI still smears.")
                     .font(t::plex(11.0)).color(t::TEXT_DIM));
                     });
+                });
             });
 
         // ── dialogs ───────────────────────────────────────────────
