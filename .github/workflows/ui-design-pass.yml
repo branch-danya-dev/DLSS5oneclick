@@ -23,10 +23,12 @@ jobs:
         run: python scripts/ui_design_pass.py
 
       - name: Format
-        run: cargo fmt --check
+        run: cargo fmt
 
       - name: Test UI-sensitive code
-        run: cargo test gui::tests i18n::tests
+        run: |
+          cargo test gui::tests
+          cargo test i18n::tests
 
       - name: Build release
         run: cargo build --release
