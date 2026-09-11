@@ -4,27 +4,31 @@ use crate::theme::{self as t};
 use eframe::egui::{self, Align, Color32, Frame, Layout, Margin, RichText, Sense, Stroke, Vec2};
 
 /// Centre a column capped at [`t::CONTENT_MAX_WIDTH`].
+///
+/// Uses an explicit `max_rect` instead of `horizontal` nesting — a horizontal
+/// row + fill-height `ScrollArea` was clipping page chrome and painting a large
+/// empty slab over the window.
 pub fn content_column(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
-    let avail = ui.available_width();
-    let width = (avail - t::CONTENT_PAD_X * 2.0)
+    let full = ui.available_rect_before_wrap();
+    let width = (full.width() - t::CONTENT_PAD_X * 2.0)
         .min(t::CONTENT_MAX_WIDTH)
         .max(0.0);
-    let side = ((avail - width) * 0.5).max(0.0);
-    ui.add_space(t::CONTENT_PAD_Y * 0.25);
-    ui.horizontal(|ui| {
-        if side > 0.0 {
-            ui.add_space(side);
-        }
-        ui.allocate_ui_with_layout(
-            Vec2::new(width, ui.available_height()),
-            Layout::top_down(Align::Min),
-            |ui| {
-                ui.set_min_width(width);
-                ui.set_max_width(width);
-                add_contents(ui);
-            },
-        );
-    });
+    let side = ((full.width() - width) * 0.5).max(0.0);
+    let rect = egui::Rect::from_min_size(
+        egui::pos2(full.left() + side, full.top()),
+        Vec2::new(width, full.height()),
+    );
+    ui.scope_builder(
+        egui::UiBuilder::new()
+            .max_rect(rect)
+            .layout(Layout::top_down(Align::Min)),
+        |ui| {
+            ui.set_min_width(width);
+            ui.set_max_width(width);
+            add_contents(ui);
+        },
+    );
+    ui.advance_cursor_after_rect(rect);
 }
 
 pub fn card_frame() -> Frame {
@@ -187,16 +191,18 @@ pub fn summary_stat(ui: &mut egui::Ui, label: &str, value: impl Into<String>) {
 pub fn info_banner(ui: &mut egui::Ui, title: &str, body: &str) -> bool {
     let mut dismiss = false;
     Frame::new()
-        .fill(t::PRIMARY_SOFT)
-        .stroke(Stroke::new(1.0, t::BORDER_ACTIVE))
+        .fill(t::WARNING_SOFT)
+        .stroke(Stroke::new(1.0, Color32::from_rgb(0x7a, 0x5a, 0x22)))
         .corner_radius(t::control_rounding())
         .inner_margin(Margin::symmetric(12, 8))
         .show(ui, |ui| {
+            ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 8.0;
                 ui.label(
                     RichText::new(title)
                         .font(t::plex_semibold(12.5))
-                        .color(t::PRIMARY_HOVER),
+                        .color(t::WARNING),
                 );
                 ui.label(
                     RichText::new(body)
@@ -214,6 +220,34 @@ pub fn info_banner(ui: &mut egui::Ui, title: &str, body: &str) -> bool {
             });
         });
     dismiss
+}
+
+pub fn summary_stat_dot(ui: &mut egui::Ui, label: &str, value: impl Into<String>, dot: Color32) {
+    Frame::new()
+        .fill(t::SURFACE_ALT)
+        .stroke(Stroke::new(1.0, t::BORDER))
+        .corner_radius(t::control_rounding())
+        .inner_margin(Margin::symmetric(14, 10))
+        .show(ui, |ui| {
+            ui.set_min_width(100.0);
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 8.0;
+                let (r, _) = ui.allocate_exact_size(Vec2::splat(8.0), Sense::hover());
+                ui.painter().circle_filled(r.center(), 3.5, dot);
+                ui.vertical(|ui| {
+                    ui.label(
+                        RichText::new(value.into())
+                            .font(t::plex_semibold(18.0))
+                            .color(t::TEXT),
+                    );
+                    ui.label(
+                        RichText::new(label)
+                            .font(t::plex(11.0))
+                            .color(t::TEXT_MUTED),
+                    );
+                });
+            });
+        });
 }
 
 pub fn selectable_option(

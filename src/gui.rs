@@ -1272,10 +1272,10 @@ fn paint_status_glyph(ui: &mut egui::Ui, ok: bool, optional: bool) {
     }
 }
 
-const CARD_W: f32 = 160.0;
-const CARD_GAP: f32 = 14.0;
-const CAPTION_H: f32 = 68.0;
-const POSTER_H: f32 = 120.0;
+const CARD_GAP: f32 = 12.0;
+const LIST_COVER_W: f32 = 92.0;
+const LIST_CARD_H: f32 = 132.0;
+const LIST_CARD_MIN_W: f32 = 420.0;
 
 impl App {
     fn lang(&self) -> Language {
@@ -1294,26 +1294,55 @@ impl App {
         let total_n = self.games.len();
         let available_n = total_n.saturating_sub(installed_n);
 
-        ui_c::page_title(ui, self.tr(T::YourGames), Some(self.tr(T::YourGamesSub)));
+        // Title + summary stats on one row (reference layout).
         ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 10.0;
-            ui_c::summary_stat(ui, self.tr(T::TotalGames), total_n.to_string());
-            ui_c::summary_stat(ui, self.tr(T::InstalledCount), installed_n.to_string());
-            ui_c::summary_stat(ui, self.tr(T::AvailableCount), available_n.to_string());
+            ui.vertical(|ui| {
+                ui.label(
+                    RichText::new(self.tr(T::YourGames))
+                        .font(t::sora(22.0))
+                        .color(t::TEXT),
+                );
+                ui.label(
+                    RichText::new(self.tr(T::YourGamesSub))
+                        .font(t::plex(13.0))
+                        .color(t::TEXT_SECONDARY),
+                );
+            });
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.spacing_mut().item_spacing.x = 10.0;
+                ui_c::summary_stat_dot(
+                    ui,
+                    self.tr(T::AvailableCount),
+                    available_n.to_string(),
+                    t::WARNING,
+                );
+                ui_c::summary_stat_dot(
+                    ui,
+                    self.tr(T::InstalledCount),
+                    installed_n.to_string(),
+                    t::SUCCESS,
+                );
+                ui_c::summary_stat_dot(
+                    ui,
+                    self.tr(T::TotalGames),
+                    total_n.to_string(),
+                    t::PRIMARY,
+                );
+            });
         });
-        ui.add_space(10.0);
+        ui.add_space(12.0);
 
-        // ── toolbar ───────────────────────────────────────────────
         let search_hint = self.tr(T::SearchGames);
         let add_game_l = self.tr(T::AddGame);
         let add_folder_l = self.tr(T::AddFolder);
         let rescan_l = self.tr(T::Rescan);
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 8.0;
+            let search_w = (ui.available_width() - 360.0).clamp(200.0, 420.0);
             let search = egui::TextEdit::singleline(&mut self.search)
                 .font(t::plex(12.5))
                 .hint_text(RichText::new(search_hint).color(t::TEXT_DIM))
-                .desired_width(220.0);
+                .desired_width(search_w);
             ui.add(search);
             if ui.add(ui_c::secondary_button(add_game_l)).clicked() {
                 if let Some(p) = rfd::FileDialog::new()
@@ -1325,27 +1354,24 @@ impl App {
             }
             if ui.add(ui_c::secondary_button(add_folder_l)).clicked() {
                 if let Some(p) = rfd::FileDialog::new()
-                    .set_title("Pick the game's install folder")
+                    .set_title(self.tr(T::PickGameFolder))
                     .pick_folder()
                 {
                     self.add_game(p, ui.ctx());
                 }
             }
             if ui
-                // Rescanning mid-install would renumber the cards under the
-                // one being worked on.
                 .add_enabled(
                     !self.scanning && !self.running,
-                    ui_c::primary_button(rescan_l).min_size(Vec2::new(120.0, 40.0)),
+                    ui_c::primary_button(rescan_l).min_size(Vec2::new(130.0, 40.0)),
                 )
                 .clicked()
             {
                 self.start_scan(ui.ctx());
             }
         });
-        ui.add_space(8.0);
+        ui.add_space(10.0);
 
-        // ── grid, grouped by store ────────────────────────────────
         let needle = self.search.trim().to_ascii_lowercase();
         let mut clicked: Option<(PathBuf, usize)> = None;
         let mut forgotten: Option<PathBuf> = None;
@@ -1355,19 +1381,16 @@ impl App {
         let empty_title = self.tr(T::NoGamesFound);
         let empty_hint = self.tr(T::NoGamesHint);
         egui::ScrollArea::vertical()
-            .auto_shrink([false, false])
+            .max_height(ui.available_height())
+            .auto_shrink([false, true])
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = 10.0;
-                // Room for the scrollbar, then as many columns as fit at the
-                // minimum width; the cards then grow to fill the row (up to 200 px).
                 let avail = ui.available_width() - 14.0;
-                let cols = ((avail + CARD_GAP) / (CARD_W + CARD_GAP)).floor().max(1.0) as usize;
+                let cols = ((avail + CARD_GAP) / (LIST_CARD_MIN_W + CARD_GAP))
+                    .floor()
+                    .max(1.0) as usize;
                 let card_w =
-                    ((avail - CARD_GAP * (cols as f32 - 1.0)) / cols as f32).clamp(CARD_W, 200.0);
-                let poster_h = POSTER_H.max((card_w * 0.75).round());
-                // None = "Installed by this tool", always first: the whole
-                // point is to see at a glance what has been modified and
-                // what has fallen behind.
+                    ((avail - CARD_GAP * (cols as f32 - 1.0)) / cols as f32).max(LIST_CARD_MIN_W);
                 let sections: [Option<Store>; 6] = [
                     None,
                     Some(Store::Manual),
@@ -1396,84 +1419,48 @@ impl App {
                     if idx.is_empty() {
                         continue;
                     }
-                    let ready = idx
-                        .iter()
-                        .filter(|i| self.meta.get(i).is_some_and(|m| m.ready))
-                        .count();
-                    let stale = idx
-                        .iter()
-                        .filter(|i| self.meta.get(i).is_some_and(|m| !m.stale.is_empty()))
-                        .count();
                     ui.horizontal(|ui| {
-                        ui.set_max_width(avail);
-                        ui.spacing_mut().item_spacing.x = 8.0;
                         ui.label(
                             RichText::new(match section {
                                 None => section_ours,
                                 Some(Store::Manual) => section_manual,
                                 Some(st) => st.label(),
                             })
-                            .font(t::plex_semibold(13.0))
+                            .font(t::plex_semibold(13.5))
                             .color(t::TEXT),
                         );
-                        ui.label(
-                            RichText::new(idx.len().to_string())
-                                .font(t::plex(12.0))
-                                .color(t::TEXT_DIM),
-                        );
-                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            if stale > 0 {
-                                ui.label(
-                                    RichText::new(fmt_n(self.tr(T::NeedUpdatingN), stale))
-                                        .font(t::plex(11.5))
-                                        .color(t::WARN),
-                                );
-                            } else if ready > 0 {
-                                ui.label(
-                                    RichText::new(fmt_n(self.tr(T::ReadyForDlssN), ready))
-                                        .font(t::plex(11.5))
-                                        .color(t::ACCENT),
-                                );
+                        ui_c::chip(ui, &idx.len().to_string(), ui_c::ChipTone::Neutral);
+                    });
+                    ui.add_space(6.0);
+                    for row in idx.chunks(cols) {
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = CARD_GAP;
+                            for &i in row {
+                                let action = self.game_card_list(ui, card_w, i);
+                                if action == CardAction::Forget {
+                                    forgotten = Some(self.games[i].dir.clone());
+                                }
+                                if matches!(action, CardAction::Open | CardAction::Update) {
+                                    update = action == CardAction::Update;
+                                    let g = &self.games[i];
+                                    let path = match game::resolve_target(&g.dir) {
+                                        Ok(_) => g.dir.clone(),
+                                        Err(_) => match &g.exe_hint {
+                                            Some(e)
+                                                if e.is_file() && game::exe_bitness(e).is_ok() =>
+                                            {
+                                                e.clone()
+                                            }
+                                            _ => g.dir.clone(),
+                                        },
+                                    };
+                                    clicked = Some((path, i));
+                                }
                             }
                         });
-                    });
-                    for row in idx.chunks(cols) {
-                        let (row_rect, _) = ui.allocate_exact_size(
-                            Vec2::new(avail, poster_h + CAPTION_H),
-                            egui::Sense::hover(),
-                        );
-                        for (k, &i) in row.iter().enumerate() {
-                            let x = row_rect.left() + k as f32 * (card_w + CARD_GAP);
-                            let rect = egui::Rect::from_min_size(
-                                egui::pos2(x, row_rect.top()),
-                                Vec2::new(card_w, poster_h + CAPTION_H),
-                            );
-                            let action = self.game_card(ui, rect, i);
-                            if action == CardAction::Forget {
-                                forgotten = Some(self.games[i].dir.clone());
-                            }
-                            if matches!(action, CardAction::Open | CardAction::Update) {
-                                update = action == CardAction::Update;
-                                let g = &self.games[i];
-                                // The folder, so the exe finder ranks every candidate:
-                                // a store's launch exe can be a bootstrapper (Epic names
-                                // Satisfactory's FactoryGameEGS.exe, the real one is the
-                                // -Shipping.exe under Engine\Binaries\Win64, #29). The
-                                // store's exe is the fallback when nothing is found.
-                                let path = match game::resolve_target(&g.dir) {
-                                    Ok(_) => g.dir.clone(),
-                                    Err(_) => match &g.exe_hint {
-                                        Some(e) if e.is_file() && game::exe_bitness(e).is_ok() => {
-                                            e.clone()
-                                        }
-                                        _ => g.dir.clone(),
-                                    },
-                                };
-                                clicked = Some((path, i));
-                            }
-                        }
+                        ui.add_space(4.0);
                     }
-                    ui.add_space(10.0);
+                    ui.add_space(8.0);
                 }
                 if !self.scanning && self.games.is_empty() {
                     ui.add_space(40.0);
@@ -1505,392 +1492,180 @@ impl App {
         }
     }
 
-    /// One poster card, and what it was asked to do.
-    fn game_card(&self, ui: &mut egui::Ui, rect: egui::Rect, i: usize) -> CardAction {
+    /// Horizontal list card matching the redesign reference (cover | info | action).
+    fn game_card_list(&self, ui: &mut egui::Ui, width: f32, i: usize) -> CardAction {
         let g = &self.games[i];
-        let resp = ui.interact(rect, ui.id().with(("card", i)), egui::Sense::click());
-        let hovered = resp.hovered();
-        let p = ui.painter();
-        let r = t::card_rounding();
-        p.rect_filled(rect, r, t::SURFACE);
-        let poster =
-            egui::Rect::from_min_size(rect.min, Vec2::new(rect.width(), rect.height() - CAPTION_H));
-        match self.posters.get(&i) {
-            Some(Some(tex)) => {
-                let top = CornerRadius {
-                    nw: t::CARD_RADIUS,
-                    ne: t::CARD_RADIUS,
-                    sw: 0,
-                    se: 0,
-                };
-                let [tw, th] = tex.size();
-                let aspect = tw as f32 / th.max(1) as f32;
-                if (aspect - 2.0 / 3.0).abs() < 0.08 {
-                    // Real 600x900 art: fill the frame.
-                    egui::Image::from_texture(tex)
-                        .fit_to_exact_size(poster.size())
-                        .corner_radius(top)
-                        .paint_at(ui, poster);
-                } else {
-                    // Landscape header, logo or icon: contain it on the dark card.
-                    p.rect_filled(poster, top, t::BG);
-                    let scale = (poster.width() / tw as f32).min(poster.height() / th as f32);
-                    let size = Vec2::new(tw as f32 * scale, th as f32 * scale);
-                    let inner = egui::Rect::from_center_size(poster.center(), size);
-                    egui::Image::from_texture(tex)
-                        .fit_to_exact_size(size)
-                        .paint_at(ui, inner);
-                }
-            }
-            Some(None) | None => {
-                // No artwork (yet): title on the dark card.
-                p.rect_filled(
-                    poster,
-                    CornerRadius {
-                        nw: t::CARD_RADIUS,
-                        ne: t::CARD_RADIUS,
-                        sw: 0,
-                        se: 0,
-                    },
-                    t::BG,
-                );
-                p.text(
-                    poster.center(),
-                    egui::Align2::CENTER_CENTER,
-                    if self.posters.contains_key(&i) {
-                        &g.title
-                    } else {
-                        "…"
-                    },
-                    t::sora(13.0),
-                    t::TEXT_MUTED,
-                );
-            }
-        }
-        let p = ui.painter();
-        // API + status chips, top of poster.
-        if let Some(m) = self.meta.get(&i) {
-            let font = t::plex_semibold(9.5);
-            let pad = Vec2::new(7.0, 3.0);
-            let mut chip_x = poster.right() - 8.0;
-            let paint_chip = |p: &egui::Painter,
-                              text: &str,
-                              fg: Color32,
-                              bg: Color32,
-                              border: Color32,
-                              right: f32| {
-                let galley = p.layout_no_wrap(text.to_owned(), font.clone(), fg);
-                let chip = egui::Rect::from_min_size(
-                    egui::pos2(right - galley.size().x - pad.x * 2.0, poster.top() + 8.0),
-                    galley.size() + pad * 2.0,
-                );
-                p.rect_filled(chip, t::chip_rounding(), bg);
-                p.rect_stroke(
-                    chip,
-                    t::chip_rounding(),
-                    Stroke::new(1.0, border),
-                    StrokeKind::Inside,
-                );
-                p.galley(chip.min + pad, galley, fg);
-                chip.left() - 4.0
-            };
-            // Installed = Success, Not installed = Neutral, Update = Warning.
-            let (status_short, status_fg, status_bg, status_bd) = if !m.stale.is_empty() {
-                (
-                    self.tr(T::StatusUpdate),
-                    t::WARNING,
-                    t::WARNING_SOFT,
-                    Color32::from_rgb(0x7a, 0x5a, 0x22),
-                )
-            } else if m.installed {
-                (
-                    self.tr(T::StatusInstalled),
-                    t::SUCCESS,
-                    t::SUCCESS_SOFT,
-                    Color32::from_rgb(0x2e, 0x6b, 0x45),
-                )
-            } else {
-                (
-                    self.tr(T::StatusNotInstalled),
-                    t::TEXT_SECONDARY,
-                    t::SURFACE_ALT,
-                    t::BORDER,
-                )
-            };
-            chip_x = paint_chip(p, status_short, status_fg, status_bg, status_bd, chip_x);
-            chip_x = paint_chip(
-                p,
-                &m.api,
-                t::PRIMARY_HOVER,
-                t::PRIMARY_SOFT,
-                t::BORDER_ACTIVE,
-                chip_x,
-            );
-            let _ = chip_x;
-            // A game this tool set up whose files upstream has moved past.
-            if !m.stale.is_empty() && self.updating != Some(i) {
-                let galley = p.layout_no_wrap("UPDATE".to_owned(), font, t::BG);
-                let badge = egui::Rect::from_min_size(
-                    egui::pos2(poster.left() + 8.0, poster.top() + 8.0),
-                    galley.size() + pad * 2.0,
-                );
-                p.rect_filled(badge, t::chip_rounding(), t::WARN);
-                p.galley(badge.min + pad, galley, t::BG);
-            }
-            // Status line over the bottom of the poster.
-            let band = egui::Rect::from_min_max(
-                egui::pos2(poster.left(), poster.bottom() - 26.0),
-                poster.max,
-            );
-            p.rect_filled(band, CornerRadius::ZERO, Color32::from_black_alpha(170));
-            let mut x = band.left() + 10.0;
-            let dlss_label = if m.has_dlss { "DLSS own" } else { "no DLSS" };
-            // A game nothing has been done to has no third state to report, and
-            // an em dash on its own read as a rendering fault rather than as
-            // "not installed" (#77).
-            let ready_label = if !m.stale.is_empty() {
-                Some("stale")
-            } else if m.ready {
-                Some("ready")
-            } else if m.installed {
-                Some("partial")
-            } else {
-                None
-            };
-            for (on, label) in [
-                (m.has_dlss, Some(dlss_label)),
-                (m.addon || m.installed, Some(m.engine_path)),
-                (m.ready && m.stale.is_empty(), ready_label),
-            ] {
-                let Some(label) = label else { continue };
-                let cy = band.center().y;
-                // Three labels do not always fit the poster's width, and the
-                // last one ran out past the card's border rather than being
-                // dropped (#77). The dots are a summary; a summary that
-                // overflows is worse than a shorter one.
-                let w = p
-                    .layout_no_wrap(label.to_owned(), t::plex_medium(10.5), t::TEXT_SOFT)
-                    .size()
-                    .x;
-                if x + 11.0 + w > band.right() - 6.0 {
-                    break;
-                }
-                p.circle_filled(
-                    egui::pos2(x + 3.0, cy),
-                    3.0,
-                    if on { t::ACCENT } else { t::TEXT_DIM },
-                );
-                let galley = p.layout_no_wrap(label.to_owned(), t::plex_medium(10.5), t::TEXT_SOFT);
-                p.galley(
-                    egui::pos2(x + 11.0, cy - galley.size().y / 2.0),
-                    galley.clone(),
-                    t::TEXT_SOFT,
-                );
-                x += 11.0 + galley.size().x + 10.0;
-            }
-            // Caps + warnings as tiny chips under the band (hover text carries detail).
-            if m.shaders_missing || m.wrong_folder.is_some() {
-                let warn = p.layout_no_wrap("!".to_owned(), t::plex_semibold(10.0), t::BG);
-                let badge = egui::Rect::from_min_size(
-                    egui::pos2(poster.right() - 22.0, poster.bottom() - 48.0),
-                    warn.size() + Vec2::new(10.0, 4.0),
-                );
-                p.rect_filled(badge, t::chip_rounding(), t::WARN);
-                p.galley(badge.min + Vec2::new(5.0, 2.0), warn, t::BG);
-            }
-        }
-        // Caption: store mark, title, truncated path, Open/Configure.
-        let cap = egui::Rect::from_min_max(egui::pos2(rect.left(), poster.bottom()), rect.max);
-        let mark = egui::Rect::from_min_size(
-            egui::pos2(cap.left() + 10.0, cap.top() + 8.0),
-            Vec2::splat(16.0),
-        );
-        store_mark(ui, &self.store_icons, mark, g.store, t::TEXT_OFF);
-        let title_x = mark.right() + 7.0;
-        // The title used to wrap to two lines and then have the second line
-        // sliced in half by the caption's clip rect, which reads as the text
-        // being cut off mid-word — because it is (#77). One line, ellipsis.
-        let avail = cap.right() - title_x - 8.0;
-        let measure = |t: &str| {
-            p.layout_no_wrap(t.to_owned(), t::plex_medium(12.0), t::TEXT)
-                .size()
-                .x
-        };
-        let title = p.layout_no_wrap(
-            truncate_to_fit(&g.title, avail, measure),
-            t::plex_medium(12.0),
-            t::TEXT,
-        );
-        let clip = egui::Rect::from_min_max(cap.min, egui::pos2(cap.right(), cap.bottom() - 4.0));
-        let painter = ui.painter().with_clip_rect(clip);
-        painter.galley(egui::pos2(title_x, cap.top() + 6.0), title, t::TEXT);
-        let path_full = g.dir.to_string_lossy();
-        let path_short = ui_c::truncate_path(&path_full, 28);
-        let path_galley = painter.layout_no_wrap(path_short, t::plex(10.5), t::TEXT_MUTED);
-        painter.galley(
-            egui::pos2(title_x, cap.top() + 24.0),
-            path_galley,
-            t::TEXT_MUTED,
-        );
-        let open_label = self.tr(T::OpenSetup);
-        let open_galley = painter.layout_no_wrap(
-            open_label.to_owned(),
-            t::plex_medium(10.5),
-            if hovered {
-                t::PRIMARY_HOVER
-            } else {
-                t::TEXT_DIM
-            },
-        );
-        painter.galley(
-            egui::pos2(title_x, cap.top() + 42.0),
-            open_galley,
-            if hovered {
-                t::PRIMARY_HOVER
-            } else {
-                t::TEXT_DIM
-            },
-        );
-        p.rect_stroke(
-            rect,
-            r,
-            Stroke::new(1.0, if hovered { t::BORDER_ACTIVE } else { t::BORDER }),
-            StrokeKind::Inside,
-        );
-        if hovered {
-            let m = self.meta.get(&i);
-            let stale = m
-                .filter(|m| !m.stale.is_empty())
-                .map(|m| format!("\n\n{}:\n  {}", self.tr(T::OutOfDate), m.stale.join("\n  ")))
-                .unwrap_or_default();
-            let mut caps = String::new();
-            if let Some(m) = m {
-                let mut bits = Vec::new();
-                if m.rt_likely {
-                    bits.push("RT-likely");
-                }
-                if m.unreal_likely {
-                    bits.push("Unreal");
-                }
-                if m.unity_likely {
-                    bits.push("Unity");
-                }
-                if m.re_engine {
-                    bits.push("RE Engine");
-                }
-                if !bits.is_empty() {
-                    caps = format!("\nCaps: {}", bits.join(", "));
-                }
-                if m.shaders_missing {
-                    caps.push_str("\nWarning: shaders missing");
-                }
-                if let Some(w) = &m.wrong_folder {
-                    caps.push_str(&format!("\nWarning: {w}"));
-                }
-            }
-            resp.clone()
-                .on_hover_text(format!("{}\n{}{}{stale}{caps}", g.title, path_full, caps,));
-        }
-        // Being installed right now: dim the poster, say so, and show how far
-        // along it is, right where the user asked for it.
-        if self.updating == Some(i) {
-            let p = ui.painter();
-            p.rect_filled(poster, r, Color32::from_black_alpha(190));
-            let pct = self.progress.min(100);
-            let title = p.layout_no_wrap(
-                if self.running {
-                    fmt_n(self.tr(T::UpdatingInProgress), pct as usize)
-                } else {
-                    self.tr(T::Finishing).to_owned()
-                },
-                t::plex_semibold(13.0),
-                t::TEXT,
-            );
-            p.galley(
-                egui::pos2(
-                    poster.center().x - title.size().x / 2.0,
-                    poster.center().y - 22.0,
-                ),
-                title,
-                t::TEXT,
-            );
-            // Which step, so a long download does not look stuck.
-            if !self.progress_msg.is_empty() {
-                let step = p.layout(
-                    self.progress_msg.clone(),
-                    t::plex(10.5),
-                    t::TEXT_SOFT,
-                    poster.width() - 20.0,
-                );
-                p.galley(
-                    egui::pos2(poster.center().x - step.size().x / 2.0, poster.center().y),
-                    step,
-                    t::TEXT_SOFT,
-                );
-            }
-            let track = egui::Rect::from_min_size(
-                egui::pos2(poster.left() + 16.0, poster.bottom() - 26.0),
-                Vec2::new(poster.width() - 32.0, 4.0),
-            );
-            p.rect_filled(track, CornerRadius::same(2), t::BORDER_STRONG);
-            let done = egui::Rect::from_min_size(
-                track.min,
-                Vec2::new(track.width() * pct as f32 / 100.0, track.height()),
-            );
-            p.rect_filled(done, CornerRadius::same(2), t::ACCENT);
-        }
-        let mut action = if resp.clicked() && self.updating != Some(i) {
-            CardAction::Open
+        let m = self.meta.get(&i);
+        let installed = m.is_some_and(|m| m.installed);
+        let stale = m.is_some_and(|m| !m.stale.is_empty());
+        let mut action = CardAction::None;
+        let path_full = g.dir.to_string_lossy().into_owned();
+        let path_short = ui_c::truncate_path(&path_full, 42);
+        let open_l = self.tr(T::OpenSetup);
+        let install_l = if !installed {
+            self.tr(T::Install)
+        } else if stale {
+            self.tr(T::Update)
         } else {
-            CardAction::None
+            self.tr(T::Reinstall)
         };
-        let installed = self.meta.get(&i).is_some_and(|m| m.installed);
-        let stale = self.meta.get(&i).is_some_and(|m| !m.stale.is_empty());
-        let meta_ready = self.meta.contains_key(&i);
-        // Primary Install / Update on the card (not only the context menu).
-        if meta_ready && self.updating != Some(i) && !self.running {
-            let label = if !installed {
-                "Install"
-            } else if stale {
-                "Update"
-            } else {
-                "Re-install"
-            };
-            let btn_h = 28.0;
-            let btn = egui::Rect::from_min_size(
-                egui::pos2(poster.left() + 10.0, poster.bottom() - btn_h - 30.0),
-                Vec2::new(poster.width() - 20.0, btn_h),
-            );
-            let btn_resp =
-                ui.interact(btn, ui.id().with(("card_install", i)), egui::Sense::click());
-            let fill = if btn_resp.hovered() {
-                t::ACCENT
-            } else {
-                Color32::from_black_alpha(200)
-            };
-            ui.painter().rect_filled(btn, CornerRadius::same(7), fill);
+
+        let frame = Frame::new()
+            .fill(t::SURFACE)
+            .stroke(Stroke::new(1.0, t::BORDER))
+            .corner_radius(t::card_rounding())
+            .inner_margin(Margin::same(10));
+        let inner = frame.show(ui, |ui| {
+            ui.set_width((width - 20.0).max(200.0));
+            ui.set_min_height(LIST_CARD_H - 20.0);
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 12.0;
+                let cover_size = Vec2::new(LIST_COVER_W, LIST_CARD_H - 24.0);
+                let (_, cover_resp) = ui.allocate_exact_size(cover_size, egui::Sense::click());
+                let cover = cover_resp.rect;
+                let p = ui.painter();
+                let cr = CornerRadius::same(8);
+                match self.posters.get(&i) {
+                    Some(Some(tex)) => {
+                        egui::Image::from_texture(tex)
+                            .fit_to_exact_size(cover.size())
+                            .corner_radius(cr)
+                            .paint_at(ui, cover);
+                    }
+                    _ => {
+                        p.rect_filled(cover, cr, t::BG);
+                        p.text(
+                            cover.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "…",
+                            t::plex(12.0),
+                            t::TEXT_MUTED,
+                        );
+                    }
+                }
+                if let Some(m) = m {
+                    let api =
+                        p.layout_no_wrap(m.api.to_owned(), t::plex_semibold(9.5), t::PRIMARY_HOVER);
+                    let pad = Vec2::new(6.0, 3.0);
+                    let chip = egui::Rect::from_min_size(
+                        egui::pos2(cover.left() + 6.0, cover.top() + 6.0),
+                        api.size() + pad * 2.0,
+                    );
+                    p.rect_filled(chip, t::chip_rounding(), t::PRIMARY_SOFT);
+                    p.rect_stroke(
+                        chip,
+                        t::chip_rounding(),
+                        Stroke::new(1.0, t::BORDER_ACTIVE),
+                        StrokeKind::Inside,
+                    );
+                    p.galley(chip.min + pad, api, t::PRIMARY_HOVER);
+                }
+                if self.updating == Some(i) {
+                    p.rect_filled(cover, cr, Color32::from_black_alpha(180));
+                    let pct = self.progress.min(100);
+                    p.text(
+                        cover.center(),
+                        egui::Align2::CENTER_CENTER,
+                        fmt_n(self.tr(T::UpdatingInProgress), pct as usize),
+                        t::plex_semibold(12.0),
+                        t::TEXT,
+                    );
+                }
+
+                ui.vertical(|ui| {
+                    ui.set_min_width((width - LIST_COVER_W - 40.0).max(200.0));
+                    ui.horizontal(|ui| {
+                        let mr = ui.allocate_exact_size(Vec2::splat(16.0), egui::Sense::hover()).1;
+                        store_mark(ui, &self.store_icons, mr.rect, g.store, t::TEXT_OFF);
+                        ui.label(
+                            RichText::new(&g.title)
+                                .font(t::plex_semibold(14.0))
+                                .color(t::TEXT),
+                        );
+                    });
+                    ui.label(
+                        RichText::new(&path_short)
+                            .font(t::mono(11.0))
+                            .color(t::TEXT_MUTED),
+                    )
+                    .on_hover_text(&path_full);
+                    ui.add_space(4.0);
+                    ui.horizontal_wrapped(|ui| {
+                        ui.spacing_mut().item_spacing.x = 6.0;
+                        if let Some(m) = m {
+                            if !m.stale.is_empty() {
+                                ui_c::chip(ui, self.tr(T::StatusUpdate), ui_c::ChipTone::Warning);
+                            } else if m.installed {
+                                ui_c::chip(
+                                    ui,
+                                    self.tr(T::StatusInstalled),
+                                    ui_c::ChipTone::Success,
+                                );
+                            } else {
+                                ui_c::chip(
+                                    ui,
+                                    self.tr(T::StatusNotInstalled),
+                                    ui_c::ChipTone::Warning,
+                                );
+                            }
+                            if m.addon || m.installed {
+                                ui_c::chip(ui, m.engine_path, ui_c::ChipTone::Neutral);
+                            }
+                            if m.ready && m.stale.is_empty() {
+                                ui_c::chip(ui, "DLSS 5", ui_c::ChipTone::Primary);
+                            }
+                        }
+                    });
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 8.0;
+                        let primary = if installed && !stale {
+                            open_l
+                        } else {
+                            install_l
+                        };
+                        let primary_action = if installed && !stale {
+                            CardAction::Open
+                        } else {
+                            CardAction::Update
+                        };
+                        if ui
+                            .add_enabled(
+                                self.updating != Some(i) && !self.running,
+                                ui_c::primary_button(primary).min_size(Vec2::new(160.0, 34.0)),
+                            )
+                            .clicked()
+                        {
+                            action = primary_action;
+                        }
+                        if installed && !stale {
+                            // already primary open
+                        } else if installed {
+                            if ui
+                                .add(
+                                    ui_c::secondary_button(open_l).min_size(Vec2::new(120.0, 34.0)),
+                                )
+                                .clicked()
+                            {
+                                action = CardAction::Open;
+                            }
+                        }
+                    });
+                });
+            });
+        });
+
+        let resp = inner.response.interact(egui::Sense::click());
+        if resp.hovered() {
             ui.painter().rect_stroke(
-                btn,
-                CornerRadius::same(7),
-                Stroke::new(1.0, t::BORDER_STRONG),
+                inner.response.rect,
+                t::card_rounding(),
+                Stroke::new(1.0, t::BORDER_ACTIVE),
                 StrokeKind::Inside,
             );
-            let galley = ui.painter().layout_no_wrap(
-                label.to_owned(),
-                t::plex_semibold(12.0),
-                if btn_resp.hovered() { t::BG } else { t::TEXT },
-            );
-            ui.painter().galley(
-                egui::pos2(
-                    btn.center().x - galley.size().x / 2.0,
-                    btn.center().y - galley.size().y / 2.0,
-                ),
-                galley,
-                t::TEXT,
-            );
-            if btn_resp.clicked() {
-                action = CardAction::Update;
-            }
+        }
+        if resp.clicked() && action == CardAction::None && self.updating != Some(i) {
+            action = CardAction::Open;
         }
         if installed || g.store == Store::Manual {
             resp.context_menu(|ui| {
@@ -2779,6 +2554,8 @@ impl eframe::App for App {
 
         // ── top ribbon: logo · nav · status · lang · support ─────
         egui::Panel::top("ribbon")
+            .resizable(false)
+            .show_separator_line(true)
             .frame(
                 Frame::new()
                     .fill(t::HEADER)
@@ -2803,8 +2580,8 @@ impl eframe::App for App {
                                 .color(t::TEXT),
                         );
                         ui.label(
-                            RichText::new("ONECLICK")
-                                .font(t::plex_semibold(9.0))
+                            RichText::new(self.tr(T::Tagline))
+                                .font(t::plex(10.5))
                                 .color(t::TEXT_MUTED),
                         );
                     });
@@ -3038,31 +2815,22 @@ impl eframe::App for App {
             }
         }
 
-        if !self.tip_dismissed {
-            egui::Panel::top("first_run_tip")
-                .frame(Frame::new().fill(t::PANEL).inner_margin(Margin {
-                    left: 20,
-                    right: 20,
-                    top: 8,
-                    bottom: 4,
-                }))
-                .show(ui, |ui| {
-                    if ui_c::info_banner(ui, self.tr(T::TipTitle), self.tr(T::TipBody)) {
-                        self.tip_dismissed = true;
-                    }
-                });
-        }
-
         egui::CentralPanel::default()
-            .frame(Frame::new().fill(t::PANEL).inner_margin(Margin {
+            .frame(Frame::new().fill(t::BG).inner_margin(Margin {
                 left: 24,
                 right: 28,
-                top: 18,
+                top: 16,
                 bottom: 14,
             }))
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = 12.0;
                 ui_c::content_column(ui, |ui| {
+                if !self.tip_dismissed {
+                    if ui_c::info_banner(ui, self.tr(T::TipTitle), self.tr(T::TipBody)) {
+                        self.tip_dismissed = true;
+                    }
+                    ui.add_space(10.0);
+                }
                 match self.page {
                     Page::Games => {
                         self.games_page(ui);
@@ -3073,50 +2841,54 @@ impl eframe::App for App {
                         // Apply / Reset row is below the edge, and there was no
                         // way to reach it (#64).
                         egui::ScrollArea::both()
+                            .max_height(ui.available_height())
                             .auto_shrink([false, false])
                             .show(ui, |ui| self.settings_page(ui));
                         return;
                     }
                     Page::About => {
-                        about_page(ui, self.lang());
-                        ui.add_space(10.0);
-                        if update::ENABLED {
-                            let busy = self.update_rx.is_some()
-                                || !matches!(self.update, UpdateState::Idle);
-                            if ui
-                                .add_enabled(
-                                    !busy,
-                                    ui_c::secondary_button(self.tr(T::CheckForUpdates)),
-                                )
-                                .clicked()
-                            {
-                                // An explicit check also clears a skipped version:
-                                // asking is asking.
-                                self.skipped_version.clear();
-                                self.checked_manually = true;
-                                self.start_update_check();
-                            }
-                            if self.checked_manually
-                                && matches!(self.update, UpdateState::Idle)
-                                && self.update_rx.is_none()
-                            {
-                                ui.label(
-                                    RichText::new(format!(
-                                        "{} (v{})",
-                                        self.tr(T::OnNewestRelease),
-                                        env!("CARGO_PKG_VERSION")
-                                    ))
-                                    .font(t::plex(12.0))
-                                    .color(t::TEXT_MUTED),
-                                );
-                            }
-                        } else {
-                            ui.label(
-                                RichText::new(self.tr(T::ForkNoUpdate))
-                                    .font(t::plex(12.0))
-                                    .color(t::TEXT_MUTED),
-                            );
-                        }
+                        egui::ScrollArea::vertical()
+                            .max_height(ui.available_height())
+                            .auto_shrink([false, true])
+                            .show(ui, |ui| {
+                                about_page(ui, self.lang());
+                                ui.add_space(10.0);
+                                if update::ENABLED {
+                                    let busy = self.update_rx.is_some()
+                                        || !matches!(self.update, UpdateState::Idle);
+                                    if ui
+                                        .add_enabled(
+                                            !busy,
+                                            ui_c::secondary_button(self.tr(T::CheckForUpdates)),
+                                        )
+                                        .clicked()
+                                    {
+                                        self.skipped_version.clear();
+                                        self.checked_manually = true;
+                                        self.start_update_check();
+                                    }
+                                    if self.checked_manually
+                                        && matches!(self.update, UpdateState::Idle)
+                                        && self.update_rx.is_none()
+                                    {
+                                        ui.label(
+                                            RichText::new(format!(
+                                                "{} (v{})",
+                                                self.tr(T::OnNewestRelease),
+                                                env!("CARGO_PKG_VERSION")
+                                            ))
+                                            .font(t::plex(12.0))
+                                            .color(t::TEXT_MUTED),
+                                        );
+                                    }
+                                } else {
+                                    ui.label(
+                                        RichText::new(self.tr(T::ForkNoUpdate))
+                                            .font(t::plex(12.0))
+                                            .color(t::TEXT_MUTED),
+                                    );
+                                }
+                            });
                         return;
                     }
                     Page::Setup => {}
@@ -3124,6 +2896,7 @@ impl eframe::App for App {
                 // Everything below scrolls: on a 768 px-tall screen the button row
                 // and the log fell off the bottom with no way to reach them (#64).
                 egui::ScrollArea::both()
+                    .max_height(ui.available_height())
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = 12.0;
@@ -3944,8 +3717,16 @@ impl eframe::App for App {
                 });
 
                 // Offline knobs / expected FPS from Feeder perf log.
-                self.knobs_panel(ui);
-                self.hotkeys_panel(ui);
+                let wide_bottom = ui.available_width() >= 1080.0;
+                if wide_bottom {
+                    ui.columns(2, |cols| {
+                        self.knobs_panel(&mut cols[0]);
+                        self.hotkeys_panel(&mut cols[1]);
+                    });
+                } else {
+                    self.knobs_panel(ui);
+                    self.hotkeys_panel(ui);
+                }
 
                 // ── progress ──────────────────────────────────────
                 let (bar, _) = ui.allocate_exact_size(
