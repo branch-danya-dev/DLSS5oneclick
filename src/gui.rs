@@ -429,8 +429,10 @@ impl App {
                 if h.has_reshade || h.has_opti {
                     self.hotkeys = Some(h);
                 } else {
-                    self.hotkeys_err =
-                        Some("Install first — hotkeys are written into ReShade.ini / OptiScaler.ini.".into());
+                    self.hotkeys_err = Some(
+                        "Install first — hotkeys are written into ReShade.ini / OptiScaler.ini."
+                            .into(),
+                    );
                 }
             }
             Err(e) => self.hotkeys_err = Some(format!("{e:#}")),
@@ -508,10 +510,7 @@ impl App {
             return;
         }
         let root = self.input_path();
-        let labels: Vec<String> = targets
-            .iter()
-            .map(|p| game::exe_label(&root, p))
-            .collect();
+        let labels: Vec<String> = targets.iter().map(|p| game::exe_label(&root, p)).collect();
         let engine = self.engine;
         let with_renodx = self.renodx_on;
         let upstream = self.upstream_on;
@@ -604,22 +603,15 @@ impl App {
                         &move |pct, msg| {
                             let scaled =
                                 base.saturating_add(((pct as u16 * span as u16) / 100) as u8);
-                            let _ = p_tx.send(Msg::Progress(
-                                scaled.min(99),
-                                format!("[{label_p}] {msg}"),
-                            ));
+                            let _ = p_tx
+                                .send(Msg::Progress(scaled.min(99), format!("[{label_p}] {msg}")));
                         },
                         &move |i, steps, name, state, detail| {
                             let line = match state {
                                 StepState::Start => {
-                                    LogLine::Step(format!(
-                                        "[{label_s}] [{}/{steps}] {name}",
-                                        i + 1
-                                    ))
+                                    LogLine::Step(format!("[{label_s}] [{}/{steps}] {name}", i + 1))
                                 }
-                                StepState::Done => {
-                                    LogLine::Ok(format!("[{label_s}] ok: {detail}"))
-                                }
+                                StepState::Done => LogLine::Ok(format!("[{label_s}] ok: {detail}")),
                                 StepState::Error => {
                                     LogLine::Fail(format!("[{label_s}] FAILED: {detail}"))
                                 }
@@ -629,11 +621,11 @@ impl App {
                     )
                     .map(|_| {
                         if engine == Engine::Opti {
-                            format!("{label}: Insert → OptiScaler overlay → enable Neural Rendering.")
-                        } else {
                             format!(
-                                "{label}: Home → Add-ons → DLSS 5 Neural Rendering → enable."
+                                "{label}: Insert → OptiScaler overlay → enable Neural Rendering."
                             )
+                        } else {
+                            format!("{label}: Home → Add-ons → DLSS 5 Neural Rendering → enable.")
                         }
                     })
                     .map_err(|e| format!("{label}: {e:#}"))
@@ -1418,52 +1410,79 @@ impl App {
         if self.store_icons.is_empty() {
             self.store_icons = load_store_icons(ui.ctx());
         }
-        // ── header ────────────────────────────────────────────────
-        let dx12 = self
+        // ── page heading ───────────────────────────────────────────
+        let installed_n = self.meta.values().filter(|m| m.installed).count();
+        let total_n = self.games.len();
+        let dx12_n = self
             .meta
             .values()
             .filter(|m| m.api.starts_with("DirectX 12"))
             .count();
+
         ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 10.0;
-            ui.label(RichText::new("Games").font(t::sora(16.0)).color(t::TEXT));
-            let summary = if self.scanning {
-                "scanning Steam, Epic, GOG and Xbox…".to_owned()
-            } else {
-                format!("{} found · {dx12} on DirectX 12", self.games.len())
-            };
-            ui.label(
-                RichText::new(summary)
-                    .font(t::plex(12.0))
-                    .color(t::TEXT_MUTED),
-            );
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = 2.0;
+                ui.label(RichText::new("Games").font(t::sora(20.0)).color(t::TEXT));
+                ui.label(
+                    RichText::new("Install and manage DLSS 5 for detected games.")
+                        .font(t::plex(12.0))
+                        .color(t::TEXT_MUTED),
+                );
+            });
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                ui.spacing_mut().item_spacing.x = 8.0;
-                let btn = |text: &str, accent: bool| {
-                    egui::Button::new(
-                        RichText::new(text)
-                            .font(t::plex_medium(12.5))
-                            .color(if accent { t::BG } else { t::TEXT_OFF }),
-                    )
-                    .fill(if accent {
-                        t::ACCENT
-                    } else {
-                        Color32::TRANSPARENT
-                    })
-                    .stroke(Stroke::new(
-                        1.0,
-                        if accent { t::ACCENT } else { t::BORDER_STRONG },
-                    ))
-                    .corner_radius(CornerRadius::same(8))
-                    .min_size(Vec2::new(96.0, 34.0))
+                let summary = if self.scanning {
+                    "Scanning Steam, Epic, GOG and Xbox…".to_owned()
+                } else {
+                    format!("{total_n} games · {installed_n} installed · {dx12_n} DX12")
                 };
-                if ui
-                    // Rescanning mid-install would renumber the cards under the
-                    // one being worked on.
-                    .add_enabled(!self.scanning && !self.running, btn("Rescan", true))
-                    .clicked()
-                {
-                    self.start_scan(ui.ctx());
+                ui.label(
+                    RichText::new(summary)
+                        .font(t::plex_medium(11.5))
+                        .color(t::TEXT_DIM),
+                );
+            });
+        });
+        ui.add_space(12.0);
+
+        // ── desktop toolbar ────────────────────────────────────────
+        let toolbar_w = ui.available_width();
+        let btn = |text: &str, accent: bool| {
+            egui::Button::new(
+                RichText::new(text)
+                    .font(t::plex_medium(12.0))
+                    .color(if accent { t::BG } else { t::TEXT_OFF }),
+            )
+            .fill(if accent {
+                t::ACCENT
+            } else {
+                Color32::TRANSPARENT
+            })
+            .stroke(Stroke::new(
+                1.0,
+                if accent { t::ACCENT } else { t::BORDER_STRONG },
+            ))
+            .corner_radius(CornerRadius::same(8))
+            .min_size(Vec2::new(96.0, 36.0))
+        };
+
+        if toolbar_w >= 760.0 {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 8.0;
+                let actions_w = 104.0 + 112.0 + 96.0 + 24.0;
+                let search_w = (ui.available_width() - actions_w).max(180.0);
+                let search = egui::TextEdit::singleline(&mut self.search)
+                    .font(t::plex(12.0))
+                    .hint_text(RichText::new("Search games…").color(t::TEXT_DIM))
+                    .desired_width(search_w);
+                ui.add_sized([search_w, 36.0], search);
+
+                if ui.add(btn("Add a game", false)).clicked() {
+                    if let Some(p) = rfd::FileDialog::new()
+                        .add_filter("Executables", &["exe", "bin"])
+                        .pick_file()
+                    {
+                        self.add_game(p, ui.ctx());
+                    }
                 }
                 if ui.add(btn("Add a folder", false)).clicked() {
                     if let Some(p) = rfd::FileDialog::new()
@@ -1473,6 +1492,22 @@ impl App {
                         self.add_game(p, ui.ctx());
                     }
                 }
+                if ui
+                    .add_enabled(!self.scanning && !self.running, btn("Rescan", true))
+                    .clicked()
+                {
+                    self.start_scan(ui.ctx());
+                }
+            });
+        } else {
+            let search = egui::TextEdit::singleline(&mut self.search)
+                .font(t::plex(12.0))
+                .hint_text(RichText::new("Search games…").color(t::TEXT_DIM))
+                .desired_width(ui.available_width());
+            ui.add_sized([ui.available_width(), 36.0], search);
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 8.0;
                 if ui.add(btn("Add a game", false)).clicked() {
                     if let Some(p) = rfd::FileDialog::new()
                         .add_filter("Executables", &["exe", "bin"])
@@ -1481,14 +1516,23 @@ impl App {
                         self.add_game(p, ui.ctx());
                     }
                 }
-                let search = egui::TextEdit::singleline(&mut self.search)
-                    .font(t::plex(12.0))
-                    .hint_text(RichText::new("Search").color(t::TEXT_DIM))
-                    .desired_width(160.0);
-                ui.add(search);
+                if ui.add(btn("Add a folder", false)).clicked() {
+                    if let Some(p) = rfd::FileDialog::new()
+                        .set_title("Pick the game's install folder")
+                        .pick_folder()
+                    {
+                        self.add_game(p, ui.ctx());
+                    }
+                }
+                if ui
+                    .add_enabled(!self.scanning && !self.running, btn("Rescan", true))
+                    .clicked()
+                {
+                    self.start_scan(ui.ctx());
+                }
             });
-        });
-        ui.add_space(4.0);
+        }
+        ui.add_space(18.0);
 
         // ── grid, grouped by store ────────────────────────────────
         let needle = self.search.trim().to_ascii_lowercase();
@@ -2330,7 +2374,10 @@ impl App {
                     .font(t::plex_medium(12.0))
                     .color(t::TEXT_SOFT),
             );
-            let host64 = self.hotkeys.as_ref().is_some_and(|h| h.consumer_dir != h.game_dir);
+            let host64 = self
+                .hotkeys
+                .as_ref()
+                .is_some_and(|h| h.consumer_dir != h.game_dir);
             if host64 {
                 ui.label(
                     RichText::new(
@@ -2510,9 +2557,11 @@ impl App {
                     value.clone()
                 };
                 let btn = egui::Button::new(
-                    RichText::new(btn_text)
-                        .font(t::mono(12.0))
-                        .color(if armed { t::WARN } else { t::TEXT }),
+                    RichText::new(btn_text).font(t::mono(12.0)).color(if armed {
+                        t::WARN
+                    } else {
+                        t::TEXT
+                    }),
                 )
                 .min_size(Vec2::new(120.0, 22.0));
                 if ui.add(btn).clicked() {
