@@ -6,6 +6,7 @@ on:
       - feature/ui-redesign-i18n
     paths:
       - .github/workflows/ui-phase1.yml
+      - scripts/ui_phase1_games_layout.py
 
 permissions:
   contents: write
