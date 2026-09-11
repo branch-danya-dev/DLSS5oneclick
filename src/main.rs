@@ -7,6 +7,7 @@ mod gpu;
 mod gpupref;
 mod gui;
 mod hotkeys;
+mod i18n;
 mod installer;
 mod library;
 mod logo;
@@ -18,6 +19,7 @@ mod reshade_ini;
 mod settings;
 mod text;
 mod theme;
+mod ui_components;
 mod update;
 
 use std::io::Write;

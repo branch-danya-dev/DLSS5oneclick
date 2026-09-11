@@ -7,6 +7,7 @@
 //! "Reset to Feeder defaults" button to restore the form to Feeder-like values.
 
 use crate::quality_preset::{QualityChoice, QualityOverrides};
+use crate::i18n::Language;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -23,6 +24,9 @@ pub struct Settings {
     /// Soft overlay UX defaults (cfg keys the Feeder reads).
     #[serde(default)]
     pub overlay: OverlayDefaults,
+    /// UI language (defaults to Russian for this fork).
+    #[serde(default)]
+    pub language: Language,
 }
 
 fn default_quality() -> String {
@@ -82,6 +86,7 @@ impl Default for Settings {
             quality: default_quality(),
             knobs: KnobDefaults::default(),
             overlay: OverlayDefaults::default(),
+            language: Language::default(),
         }
     }
 }
@@ -121,6 +126,7 @@ impl Settings {
                 evaluate_stride: 1,
                 log_frames: 3,
             },
+            language: Language::default(),
         }
     }
 
