@@ -1272,10 +1272,10 @@ fn paint_status_glyph(ui: &mut egui::Ui, ok: bool, optional: bool) {
     }
 }
 
-const CARD_GAP: f32 = 12.0;
-const LIST_COVER_W: f32 = 92.0;
-const LIST_CARD_H: f32 = 132.0;
-const LIST_CARD_MIN_W: f32 = 420.0;
+const CARD_GAP: f32 = 14.0;
+const LIST_COVER_W: f32 = 118.0;
+const LIST_CARD_H: f32 = 176.0;
+const LIST_CARD_MIN_W: f32 = 560.0;
 
 impl App {
     fn lang(&self) -> Language {
@@ -1294,57 +1294,121 @@ impl App {
         let total_n = self.games.len();
         let available_n = total_n.saturating_sub(installed_n);
 
-        // Title + summary stats on one row (reference layout).
-        ui.horizontal(|ui| {
-            ui.vertical(|ui| {
-                ui.label(
-                    RichText::new(self.tr(T::YourGames))
-                        .font(t::sora(22.0))
-                        .color(t::TEXT),
-                );
-                ui.label(
-                    RichText::new(self.tr(T::YourGamesSub))
-                        .font(t::plex(13.0))
-                        .color(t::TEXT_SECONDARY),
-                );
+        // Broad hero: title/subtitle on the left, three equal status blocks on the right.
+        let hero_w = ui.available_width();
+        Frame::new()
+            .fill(t::SURFACE_ALT)
+            .stroke(Stroke::new(1.0, t::BORDER_STRONG))
+            .corner_radius(t::card_rounding())
+            .inner_margin(Margin::symmetric(22, 18))
+            .show(ui, |ui| {
+                ui.set_width((hero_w - 44.0).max(320.0));
+                let inner_w = ui.available_width();
+                if inner_w >= 900.0 {
+                    let gap = 24.0;
+                    let left_w = (inner_w * 0.50).max(360.0);
+                    let right_w = (inner_w - left_w - gap).max(420.0);
+                    ui.horizontal(|ui| {
+                        ui.allocate_ui_with_layout(
+                            Vec2::new(left_w, 78.0),
+                            Layout::top_down(Align::Min),
+                            |ui| {
+                                ui.add_space(3.0);
+                                ui.label(
+                                    RichText::new(self.tr(T::YourGames))
+                                        .font(t::sora(25.0))
+                                        .color(t::TEXT),
+                                );
+                                ui.add_space(5.0);
+                                ui.label(
+                                    RichText::new(self.tr(T::YourGamesSub))
+                                        .font(t::plex(13.5))
+                                        .color(t::TEXT_SECONDARY),
+                                );
+                            },
+                        );
+                        ui.add_space(gap);
+                        ui.allocate_ui_with_layout(
+                            Vec2::new(right_w, 74.0),
+                            Layout::top_down(Align::Min),
+                            |ui| {
+                                ui.columns(3, |cols| {
+                                    ui_c::summary_stat_dot(
+                                        &mut cols[0],
+                                        self.tr(T::TotalGames),
+                                        total_n.to_string(),
+                                        t::PRIMARY,
+                                    );
+                                    ui_c::summary_stat_dot(
+                                        &mut cols[1],
+                                        self.tr(T::InstalledCount),
+                                        installed_n.to_string(),
+                                        t::SUCCESS,
+                                    );
+                                    ui_c::summary_stat_dot(
+                                        &mut cols[2],
+                                        self.tr(T::AvailableCount),
+                                        available_n.to_string(),
+                                        t::WARNING,
+                                    );
+                                });
+                            },
+                        );
+                    });
+                } else {
+                    ui.label(
+                        RichText::new(self.tr(T::YourGames))
+                            .font(t::sora(24.0))
+                            .color(t::TEXT),
+                    );
+                    ui.label(
+                        RichText::new(self.tr(T::YourGamesSub))
+                            .font(t::plex(13.0))
+                            .color(t::TEXT_SECONDARY),
+                    );
+                    ui.add_space(14.0);
+                    ui.columns(3, |cols| {
+                        ui_c::summary_stat_dot(
+                            &mut cols[0],
+                            self.tr(T::TotalGames),
+                            total_n.to_string(),
+                            t::PRIMARY,
+                        );
+                        ui_c::summary_stat_dot(
+                            &mut cols[1],
+                            self.tr(T::InstalledCount),
+                            installed_n.to_string(),
+                            t::SUCCESS,
+                        );
+                        ui_c::summary_stat_dot(
+                            &mut cols[2],
+                            self.tr(T::AvailableCount),
+                            available_n.to_string(),
+                            t::WARNING,
+                        );
+                    });
+                }
             });
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                ui.spacing_mut().item_spacing.x = 10.0;
-                ui_c::summary_stat_dot(
-                    ui,
-                    self.tr(T::AvailableCount),
-                    available_n.to_string(),
-                    t::WARNING,
-                );
-                ui_c::summary_stat_dot(
-                    ui,
-                    self.tr(T::InstalledCount),
-                    installed_n.to_string(),
-                    t::SUCCESS,
-                );
-                ui_c::summary_stat_dot(
-                    ui,
-                    self.tr(T::TotalGames),
-                    total_n.to_string(),
-                    t::PRIMARY,
-                );
-            });
-        });
-        ui.add_space(12.0);
+        ui.add_space(16.0);
 
+        // Toolbar: the search field consumes the flexible space, actions stay compact.
         let search_hint = self.tr(T::SearchGames);
         let add_game_l = self.tr(T::AddGame);
         let add_folder_l = self.tr(T::AddFolder);
         let rescan_l = self.tr(T::Rescan);
         ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 8.0;
-            let search_w = (ui.available_width() - 360.0).clamp(200.0, 420.0);
+            ui.spacing_mut().item_spacing.x = 10.0;
+            let actions_w = 154.0 + 146.0 + 138.0 + 30.0;
+            let search_w = (ui.available_width() - actions_w).max(260.0);
             let search = egui::TextEdit::singleline(&mut self.search)
-                .font(t::plex(12.5))
+                .font(t::plex(13.0))
                 .hint_text(RichText::new(search_hint).color(t::TEXT_DIM))
                 .desired_width(search_w);
-            ui.add(search);
-            if ui.add(ui_c::secondary_button(add_game_l)).clicked() {
+            ui.add_sized([search_w, 40.0], search);
+            if ui
+                .add(ui_c::secondary_button(add_game_l).min_size(Vec2::new(154.0, 40.0)))
+                .clicked()
+            {
                 if let Some(p) = rfd::FileDialog::new()
                     .add_filter("Executables", &["exe", "bin"])
                     .pick_file()
@@ -1352,7 +1416,10 @@ impl App {
                     self.add_game(p, ui.ctx());
                 }
             }
-            if ui.add(ui_c::secondary_button(add_folder_l)).clicked() {
+            if ui
+                .add(ui_c::secondary_button(add_folder_l).min_size(Vec2::new(146.0, 40.0)))
+                .clicked()
+            {
                 if let Some(p) = rfd::FileDialog::new()
                     .set_title(self.tr(T::PickGameFolder))
                     .pick_folder()
@@ -1363,14 +1430,14 @@ impl App {
             if ui
                 .add_enabled(
                     !self.scanning && !self.running,
-                    ui_c::primary_button(rescan_l).min_size(Vec2::new(130.0, 40.0)),
+                    ui_c::primary_button(rescan_l).min_size(Vec2::new(138.0, 40.0)),
                 )
                 .clicked()
             {
                 self.start_scan(ui.ctx());
             }
         });
-        ui.add_space(10.0);
+        ui.add_space(18.0);
 
         let needle = self.search.trim().to_ascii_lowercase();
         let mut clicked: Option<(PathBuf, usize)> = None;
@@ -1380,17 +1447,12 @@ impl App {
         let section_manual = self.tr(T::AddedByYou);
         let empty_title = self.tr(T::NoGamesFound);
         let empty_hint = self.tr(T::NoGamesHint);
+
         egui::ScrollArea::vertical()
             .max_height(ui.available_height())
             .auto_shrink([false, true])
             .show(ui, |ui| {
-                ui.spacing_mut().item_spacing.y = 10.0;
-                let avail = ui.available_width() - 14.0;
-                let cols = ((avail + CARD_GAP) / (LIST_CARD_MIN_W + CARD_GAP))
-                    .floor()
-                    .max(1.0) as usize;
-                let card_w =
-                    ((avail - CARD_GAP * (cols as f32 - 1.0)) / cols as f32).max(LIST_CARD_MIN_W);
+                ui.spacing_mut().item_spacing.y = 16.0;
                 let sections: [Option<Store>; 6] = [
                     None,
                     Some(Store::Manual),
@@ -1419,65 +1481,87 @@ impl App {
                     if idx.is_empty() {
                         continue;
                     }
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            RichText::new(match section {
-                                None => section_ours,
-                                Some(Store::Manual) => section_manual,
-                                Some(st) => st.label(),
-                            })
-                            .font(t::plex_semibold(13.5))
-                            .color(t::TEXT),
-                        );
-                        ui_c::chip(ui, &idx.len().to_string(), ui_c::ChipTone::Neutral);
-                    });
-                    ui.add_space(6.0);
-                    for row in idx.chunks(cols) {
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = CARD_GAP;
-                            for &i in row {
-                                let action = self.game_card_list(ui, card_w, i);
-                                if action == CardAction::Forget {
-                                    forgotten = Some(self.games[i].dir.clone());
-                                }
-                                if matches!(action, CardAction::Open | CardAction::Update) {
-                                    update = action == CardAction::Update;
-                                    let g = &self.games[i];
-                                    let path = match game::resolve_target(&g.dir) {
-                                        Ok(_) => g.dir.clone(),
-                                        Err(_) => match &g.exe_hint {
-                                            Some(e)
-                                                if e.is_file() && game::exe_bitness(e).is_ok() =>
-                                            {
-                                                e.clone()
-                                            }
-                                            _ => g.dir.clone(),
-                                        },
-                                    };
-                                    clicked = Some((path, i));
-                                }
+
+                    let section_w = ui.available_width();
+                    Frame::new()
+                        .fill(t::SURFACE)
+                        .stroke(Stroke::new(1.0, t::BORDER))
+                        .corner_radius(t::card_rounding())
+                        .inner_margin(Margin::same(16))
+                        .show(ui, |ui| {
+                            ui.set_width((section_w - 32.0).max(320.0));
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 9.0;
+                                ui.label(
+                                    RichText::new(match section {
+                                        None => section_ours,
+                                        Some(Store::Manual) => section_manual,
+                                        Some(st) => st.label(),
+                                    })
+                                    .font(t::plex_semibold(15.0))
+                                    .color(t::TEXT),
+                                );
+                                ui_c::chip(ui, &idx.len().to_string(), ui_c::ChipTone::Neutral);
+                            });
+                            ui.add_space(12.0);
+
+                            let inner_w = ui.available_width();
+                            let cols = if inner_w >= 1160.0 { 2 } else { 1 };
+                            let card_w = if cols == 2 {
+                                (inner_w - CARD_GAP) / 2.0
+                            } else {
+                                inner_w
+                            };
+
+                            for row in idx.chunks(cols) {
+                                ui.horizontal(|ui| {
+                                    ui.spacing_mut().item_spacing.x = CARD_GAP;
+                                    for &i in row {
+                                        let action = self.game_card_list(ui, card_w, i);
+                                        if action == CardAction::Forget {
+                                            forgotten = Some(self.games[i].dir.clone());
+                                        }
+                                        if matches!(action, CardAction::Open | CardAction::Update) {
+                                            update = action == CardAction::Update;
+                                            let g = &self.games[i];
+                                            let path = match game::resolve_target(&g.dir) {
+                                                Ok(_) => g.dir.clone(),
+                                                Err(_) => match &g.exe_hint {
+                                                    Some(e)
+                                                        if e.is_file()
+                                                            && game::exe_bitness(e).is_ok() =>
+                                                    {
+                                                        e.clone()
+                                                    }
+                                                    _ => g.dir.clone(),
+                                                },
+                                            };
+                                            clicked = Some((path, i));
+                                        }
+                                    }
+                                });
+                                ui.add_space(8.0);
                             }
                         });
-                        ui.add_space(4.0);
-                    }
-                    ui.add_space(8.0);
                 }
+
                 if !self.scanning && self.games.is_empty() {
-                    ui.add_space(40.0);
+                    ui.add_space(48.0);
                     ui.vertical_centered(|ui| {
                         ui.label(
                             RichText::new(empty_title)
-                                .font(t::plex(13.0))
+                                .font(t::plex(14.0))
                                 .color(t::TEXT_MUTED),
                         );
                         ui.label(
                             RichText::new(empty_hint)
-                                .font(t::plex(12.0))
+                                .font(t::plex(12.5))
                                 .color(t::TEXT_DIM),
                         );
                     });
                 }
             });
+
         if let Some(p) = forgotten {
             library::forget_added(&p);
             self.games
@@ -1511,10 +1595,10 @@ impl App {
         };
 
         let frame = Frame::new()
-            .fill(t::SURFACE)
+            .fill(t::SURFACE_ALT)
             .stroke(Stroke::new(1.0, t::BORDER))
             .corner_radius(t::card_rounding())
-            .inner_margin(Margin::same(10));
+            .inner_margin(Margin::same(12));
         let inner = frame.show(ui, |ui| {
             ui.set_width((width - 20.0).max(200.0));
             ui.set_min_height(LIST_CARD_H - 20.0);
@@ -1575,11 +1659,13 @@ impl App {
                 ui.vertical(|ui| {
                     ui.set_min_width((width - LIST_COVER_W - 40.0).max(200.0));
                     ui.horizontal(|ui| {
-                        let mr = ui.allocate_exact_size(Vec2::splat(16.0), egui::Sense::hover()).1;
+                        let mr = ui
+                            .allocate_exact_size(Vec2::splat(16.0), egui::Sense::hover())
+                            .1;
                         store_mark(ui, &self.store_icons, mr.rect, g.store, t::TEXT_OFF);
                         ui.label(
                             RichText::new(&g.title)
-                                .font(t::plex_semibold(14.0))
+                                .font(t::plex_semibold(15.0))
                                 .color(t::TEXT),
                         );
                     });
@@ -1589,7 +1675,7 @@ impl App {
                             .color(t::TEXT_MUTED),
                     )
                     .on_hover_text(&path_full);
-                    ui.add_space(4.0);
+                    ui.add_space(7.0);
                     ui.horizontal_wrapped(|ui| {
                         ui.spacing_mut().item_spacing.x = 6.0;
                         if let Some(m) = m {
@@ -1616,7 +1702,7 @@ impl App {
                             }
                         }
                     });
-                    ui.add_space(6.0);
+                    ui.add_space(10.0);
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 8.0;
                         let primary = if installed && !stale {
@@ -1632,7 +1718,7 @@ impl App {
                         if ui
                             .add_enabled(
                                 self.updating != Some(i) && !self.running,
-                                ui_c::primary_button(primary).min_size(Vec2::new(160.0, 34.0)),
+                                ui_c::primary_button(primary).min_size(Vec2::new(182.0, 38.0)),
                             )
                             .clicked()
                         {
@@ -1643,7 +1729,7 @@ impl App {
                         } else if installed {
                             if ui
                                 .add(
-                                    ui_c::secondary_button(open_l).min_size(Vec2::new(120.0, 34.0)),
+                                    ui_c::secondary_button(open_l).min_size(Vec2::new(132.0, 38.0)),
                                 )
                                 .clicked()
                             {
