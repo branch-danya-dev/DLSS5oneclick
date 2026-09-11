@@ -15,6 +15,14 @@
 
 ## Изменения этого форка
 
+### v0.13.17 — Lies of P / Unreal launcher + зависание Install
+
+[Релиз v0.13.17](https://github.com/branch-danya-dev/DLSS5oneclick/releases/tag/v0.13.17)
+
+- Корневой лаунчер + один Unreal `*-Shipping.exe` (Lies of P и похожие) больше не считаются коллекцией из двух игр — Install идёт только в Shipping.
+- Lookup ReShade на reshade.me быстрее падает по таймауту; если копия уже от этого тула — Install продолжает работу без зависания кнопки.
+- Паника в потоке Install больше не оставляет кнопку Install неактивной до перезапуска.
+
 ### v0.13.16 — хоткеи для игровых коллекций
 
 [Релиз v0.13.16](https://github.com/branch-danya-dev/DLSS5oneclick/releases/tag/v0.13.16)

@@ -553,6 +553,7 @@ impl App {
         self.log.clear();
         self.last_error = None;
         thread::spawn(move || {
+            let summary = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let n = targets.len();
             let mut ok_names = Vec::new();
             let mut err_names = Vec::new();
@@ -682,6 +683,14 @@ impl App {
                     ok_names.join(", "),
                     err_names.join(", ")
                 ))
+            };
+            summary
+            }));
+            let summary = match summary {
+                Ok(s) => s,
+                Err(_) => Err(
+                    "Install thread panicked — restart the app if Install stays disabled.".into(),
+                ),
             };
             let _ = tx.send(Msg::Finished(summary));
         });

@@ -1283,6 +1283,45 @@ pub fn resolve_target(input: &Path) -> Result<(PathBuf, Vec<PathBuf>)> {
     bail!("not found: {}", input.display())
 }
 
+/// True when `dir` looks like an Unreal `Binaries/Win64` (or Win32) with a Shipping exe.
+fn unreal_shipping_project(dir: &Path) -> bool {
+    for arch in ["Win64", "Win32"] {
+        let win = dir.join("Binaries").join(arch);
+        let Ok(rd) = fs::read_dir(&win) else {
+            continue;
+        };
+        for e in rd.flatten() {
+            let name = e.file_name().to_string_lossy().to_ascii_lowercase();
+            if name.contains("-shipping.exe") {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Lies of P / Ghostrunner-style: `InstallRoot/LOP.exe` beside a single
+/// `InstallRoot/LiesofP/Binaries/Win64/*-Shipping.exe`. Share that project's
+/// identity so collection UI does not treat launcher + Shipping as two games.
+/// Several Unreal projects under the same root (MELE) stay distinct.
+fn sole_unreal_project_beside(install_root: &Path) -> Option<PathBuf> {
+    let Ok(rd) = fs::read_dir(install_root) else {
+        return None;
+    };
+    let mut found: Option<PathBuf> = None;
+    for e in rd.flatten() {
+        let p = e.path();
+        if !p.is_dir() || !unreal_shipping_project(&p) {
+            continue;
+        }
+        if found.is_some() {
+            return None;
+        }
+        found = Some(p);
+    }
+    found
+}
+
 /// Stable "which game is this exe?" identity under a shared install root.
 ///
 /// Collapses Unreal `…/Game/Binaries/Win64/*-Shipping.exe` and a root
@@ -1302,6 +1341,10 @@ pub fn game_identity(exe: &Path) -> PathBuf {
         "win64" | "win32" | "x64" | "x86" | "bin" | "binaries"
     );
     if !is_arch {
+        // Root launcher next to exactly one Unreal project folder.
+        if let Some(project) = sole_unreal_project_beside(parent) {
+            return project;
+        }
         return parent.to_path_buf();
     }
     let Some(up) = parent.parent() else {
@@ -1781,6 +1824,24 @@ mod tests {
         let all = find_game_exes(&root);
         assert!(!is_collection(&all), "{all:?}");
         assert_eq!(collection_members(&all).len(), 1);
+    }
+
+    /// Lies of P / Ghostrunner Steam layout: root launcher beside
+    /// `GameName/Binaries/Win64/*-Shipping.exe` — still one game, not a collection.
+    #[test]
+    fn collection_ignores_root_launcher_beside_nested_shipping() {
+        let t = tempfile::tempdir().unwrap();
+        let root = t.path().join("Lies of P");
+        let bin = root.join("LiesofP").join("Binaries").join("Win64");
+        fs::create_dir_all(&bin).unwrap();
+        make_pe(&root.join("LOP.exe"), PE_X64);
+        let shipping = make_pe(&bin.join("LOP-Win64-Shipping.exe"), PE_X64);
+        let all = find_game_exes(&root);
+        assert!(!is_collection(&all), "{all:?}");
+        let members = collection_members(&all);
+        assert_eq!(members.len(), 1, "{members:?}");
+        assert_eq!(members[0], shipping);
+        assert_eq!(game_identity(&root.join("LOP.exe")), root.join("LiesofP"));
     }
 
     /// The one substitution that is still right: an Unreal launcher beside its

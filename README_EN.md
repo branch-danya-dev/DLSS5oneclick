@@ -15,6 +15,14 @@
 
 ## Fork-specific changes
 
+### v0.13.17 — Lies of P / Unreal launcher + Install hang
+
+[Release v0.13.17](https://github.com/branch-danya-dev/DLSS5oneclick/releases/tag/v0.13.17)
+
+- A root launcher plus a single Unreal `*-Shipping.exe` (Lies of P and similar) is no longer treated as a two-game collection — Install targets Shipping only.
+- ReShade lookup against reshade.me fails faster on timeout; if this tool already placed ReShade, Install continues instead of leaving the button stuck.
+- A panic in the Install thread no longer leaves Install disabled until restart.
+
 ### v0.13.16 — hotkeys for collections
 
 [Release v0.13.16](https://github.com/branch-danya-dev/DLSS5oneclick/releases/tag/v0.13.16)

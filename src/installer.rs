@@ -1439,7 +1439,17 @@ fn step_reshade(
     // does nothing. Whatever the marker says, that one gets replaced (#69).
     let wrong_bitness = st.reshade && game::exe_bitness(&proxy).is_ok_and(|b| b != st.bitness);
     progress(0, "Looking up latest ReShade");
-    let (ver, url) = resolve_reshade_setup(client)?;
+    let (ver, url) = match resolve_reshade_setup(client) {
+        Ok(v) => v,
+        Err(e) if st.reshade && !wrong_bitness && d.join(game::RESHADE_MARKER).is_file() => {
+            // Offline / reshade.me unreachable: keep the copy this tool already placed
+            // so Install can continue with Feeder / shaders instead of hanging the UI.
+            return Ok(vec![format!(
+                "ReShade lookup failed ({e:#}); keeping installed copy"
+            )]);
+        }
+        Err(e) => return Err(e),
+    };
     if st.reshade && !wrong_bitness {
         // Only a copy this tool placed is refreshed; a user's own ReShade stays.
         match fs::read_to_string(d.join(game::RESHADE_MARKER)) {
