@@ -40,14 +40,14 @@ pub const WARNING_SOFT: Color32 = Color32::from_rgb(0x2a, 0x22, 0x14);
 pub const DANGER: Color32 = Color32::from_rgb(0xff, 0x62, 0x62);
 pub const DANGER_SOFT: Color32 = Color32::from_rgb(0x2a, 0x16, 0x18);
 
-// ── radii ──────────────────────────────────────────────────────────
+// ── geometry ───────────────────────────────────────────────────────
 pub const CARD_RADIUS: u8 = 12;
 pub const CONTROL_RADIUS: u8 = 8;
 pub const CHIP_RADIUS: u8 = 6;
 
-/// Max width of the centred content column (logical px).
-pub const CONTENT_MAX_WIDTH: f32 = 1480.0;
-pub const CONTENT_PAD_X: f32 = 20.0;
+/// Desktop layout should feel broad rather than like a narrow web form.
+pub const CONTENT_MAX_WIDTH: f32 = 1640.0;
+pub const CONTENT_PAD_X: f32 = 0.0;
 pub const CONTENT_PAD_Y: f32 = 12.0;
 
 // ── aliases kept so existing gui code compiles during the redesign ──
@@ -143,16 +143,16 @@ pub fn install(ctx: &egui::Context) {
 
     ctx.all_styles_mut(|style| {
         style.text_styles = [
-            (TextStyle::Heading, sora(18.0)),
-            (TextStyle::Body, plex(13.0)),
-            (TextStyle::Button, plex_medium(13.0)),
-            (TextStyle::Small, plex(11.5)),
+            (TextStyle::Heading, sora(20.0)),
+            (TextStyle::Body, plex(14.0)),
+            (TextStyle::Button, plex_medium(13.5)),
+            (TextStyle::Small, plex(12.0)),
             (TextStyle::Monospace, mono(12.0)),
         ]
         .into();
-        style.spacing.item_spacing = egui::vec2(10.0, 8.0);
-        style.spacing.button_padding = egui::vec2(14.0, 8.0);
-        style.spacing.interact_size = egui::vec2(44.0, 30.0);
+        style.spacing.item_spacing = egui::vec2(12.0, 10.0);
+        style.spacing.button_padding = egui::vec2(16.0, 9.0);
+        style.spacing.interact_size = egui::vec2(46.0, 34.0);
         style.spacing.indent = 16.0;
 
         let v = &mut style.visuals;
